@@ -22,12 +22,15 @@ PFUNC_YYGMLScript origRemoveAttackPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript = nullptr;
+PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript = nullptr;
+PFUNC_YYGMLScript origEndStopBaseMobCreateScript = nullptr;
 
 CInstance* globalInstance = nullptr;
 
 int objAttackControllerIndex = -1;
 int objPlayerIndex = -1;
 int objInputManagerIndex = -1;
+int objEnemyIndex = -1;
 int sprShopItemBGIndex = -1;
 int sprShopIconIndex = -1;
 int sprShopLevelsEmptyIndex = -1;
@@ -86,11 +89,6 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_PlayerManager_Draw_64");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Enemy_Step_0", EnemyStepBefore, nullptr)))
-	{
-		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Enemy_Step_0");
-		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
-	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Player_Mouse_54", PlayerMouse54Before, nullptr)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Player_Mouse_54");
@@ -137,6 +135,16 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_AddCollab_gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CompleteStop_gml_Object_obj_BaseMob_Create_0", nullptr, nullptr, &origCompleteStopBaseMobCreateScript)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_CompleteStop_gml_Object_obj_BaseMob_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_EndStop_gml_Object_obj_BaseMob_Create_0", nullptr, nullptr, &origEndStopBaseMobCreateScript)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_EndStop_gml_Object_obj_BaseMob_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	g_RunnerInterface = g_ModuleInterface->GetRunnerInterface();
 	g_ModuleInterface->GetGlobalInstance(&globalInstance);
@@ -144,6 +152,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	objAttackControllerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_AttackController" }).AsReal());
 	objPlayerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).AsReal());
 	objInputManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_InputManager" }).AsReal());
+	objEnemyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Enemy" }).AsReal());
 	sprShopItemBGIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopItemBG" }).AsReal());
 	sprShopIconIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopIcon" }).AsReal());
 	sprShopLevelsEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopLevels_Empty" }).AsReal());

@@ -17,5 +17,4 @@ struct sandboxCheckBox
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
-void EnemyStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerMouse54Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

@@ -3,7 +3,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.0.1"
+#define VERSION_NUM "v1.0.2"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
@@ -63,12 +63,15 @@ extern PFUNC_YYGMLScript origRemoveAttackPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origAddItemPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript;
+extern PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript;
+extern PFUNC_YYGMLScript origEndStopBaseMobCreateScript;
 
 extern TRoutine origStructGetFromHashFunc;
 extern TRoutine origStructSetFromHashFunc;
 extern int objAttackControllerIndex;
 extern int objPlayerIndex;
 extern int objInputManagerIndex;
+extern int objEnemyIndex;
 extern int sprShopItemBGIndex;
 extern int sprShopIconIndex;
 extern int sprShopLevelsEmptyIndex;

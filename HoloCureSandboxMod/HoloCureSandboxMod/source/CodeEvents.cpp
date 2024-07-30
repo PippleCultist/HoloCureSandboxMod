@@ -63,6 +63,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		curDamageData.curFrameDamage = 0;
 	}
 
+	bool hasUpdatedTimePaused = false;
 	if ((GetAsyncKeyState('Y') & 0xFFFE) != 0)
 	{
 		if (!isSandboxMenuButtonPressed)
@@ -88,6 +89,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 				setInstanceVariable(player, GML_mouseFollowMode, prevMouseFollowMode);
 				selectedItemIndex = -1;
 			}
+			hasUpdatedTimePaused = true;
 			g_ModuleInterface->CallBuiltin("variable_global_set", { "timePause", isTimePaused });
 		}
 	}
@@ -103,13 +105,51 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			if (!isTimePausedButtonPressed)
 			{
 				isTimePausedButtonPressed = true;
-				bool isTimePaused = !g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
-				g_ModuleInterface->CallBuiltin("variable_global_set", { "timePause", isTimePaused });
+				bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "timePause", !isTimePaused });
+				hasUpdatedTimePaused = true;
 			}
 		}
 		else
 		{
 			isTimePausedButtonPressed = false;
+		}
+	}
+
+	if (hasUpdatedTimePaused)
+	{
+		bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
+		if (isTimePaused)
+		{
+			int enemyCount = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("instance_number", { objEnemyIndex }).AsReal()));
+			for (int i = 0; i < enemyCount; i++)
+			{
+				RValue instance = g_ModuleInterface->CallBuiltin("instance_find", { objEnemyIndex, i });
+				int instanceID = static_cast<int>(lround(instance.AsReal()));
+				CInstance* objectInstance = nullptr;
+				if (!AurieSuccess(g_ModuleInterface->GetInstanceObject(instanceID, objectInstance)))
+				{
+					continue;
+				}
+				RValue result;
+				origCompleteStopBaseMobCreateScript(objectInstance, objectInstance, result, 0, nullptr);
+			}
+		}
+		else
+		{
+			int enemyCount = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("instance_number", { objEnemyIndex }).AsReal()));
+			for (int i = 0; i < enemyCount; i++)
+			{
+				RValue instance = g_ModuleInterface->CallBuiltin("instance_find", { objEnemyIndex, i });
+				int instanceID = static_cast<int>(lround(instance.AsReal()));
+				CInstance* objectInstance = nullptr;
+				if (!AurieSuccess(g_ModuleInterface->GetInstanceObject(instanceID, objectInstance)))
+				{
+					continue;
+				}
+				RValue result;
+				origEndStopBaseMobCreateScript(objectInstance, objectInstance, result, 0, nullptr);
+			}
 		}
 	}
 }
@@ -602,25 +642,6 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 100, 110 + i * 30, text, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1 });
 			}
 		}
-	}
-}
-
-void EnemyStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
-{
-	CInstance* Self = std::get<0>(Args);
-	bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
-	if (isTimePaused)
-	{
-		RValue CompleteStopMethod = getInstanceVariable(Self, GML_CompleteStop);
-		RValue CompleteStopMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
-		g_ModuleInterface->CallBuiltin("method_call", { CompleteStopMethod, CompleteStopMethodArr });
-	}
-	else
-	{
-		// TODO: Kind of lazy solution. Should fix this later
-		RValue EndStopMethod = getInstanceVariable(Self, GML_EndStop);
-		RValue EndStopMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
-		g_ModuleInterface->CallBuiltin("method_call", { EndStopMethod, EndStopMethodArr });
 	}
 }
 
