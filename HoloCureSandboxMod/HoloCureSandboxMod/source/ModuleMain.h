@@ -3,7 +3,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.0.0"
+#define VERSION_NUM "v1.0.1"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
@@ -37,6 +37,8 @@
 	DO(shieldHP) \
 	DO(sprite_index) \
 	DO(attackID) \
+	DO(weaponCollabs) \
+	DO(combos) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -53,12 +55,14 @@ const char* const VariableNamesStringsArr[] =
 extern RValue GMLVarIndexMapGMLHash[1001];
 extern CInstance* globalInstance;
 extern YYTKInterface* g_ModuleInterface;
+extern YYRunnerInterface g_RunnerInterface;
 
 extern PFUNC_YYGMLScript origMouseOverButtonScript;
 extern PFUNC_YYGMLScript origAddAttackPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origRemoveAttackPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origAddItemPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript;
+extern PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript;
 
 extern TRoutine origStructGetFromHashFunc;
 extern TRoutine origStructSetFromHashFunc;
@@ -73,3 +77,5 @@ extern int sprShopIconSelectedIndex;
 extern int sprHudShopButtonIndex;
 extern int sprHudToggleButtonIndex;
 extern int sprHudOptionButtonIndex;
+extern int sprUnknownIconButtonIndex;
+extern int sprBulletTempIndex;

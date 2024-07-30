@@ -2,7 +2,8 @@
 #include "CodeEvents.h"
 #include "ScriptFunctions.h"
 
-extern std::unordered_map<int, damageData> damagePerFrameMap;
+extern std::unordered_map<std::string, damageData> damagePerFrameMap;
+extern CallbackManagerInterface* callbackManagerInterfacePtr;
 
 bool isInSandboxMenu = false;
 bool prevIsTimePaused = false;
@@ -17,7 +18,8 @@ int selectedItemIndex = -1;
 enum sandboxItemType
 {
 	SANDBOXITEMTYPE_Weapon,
-	SANDBOXITEMTYPE_Item
+	SANDBOXITEMTYPE_Item,
+	SANDBOXITEMTYPE_Collab
 };
 
 struct sandboxShopItemData
@@ -120,6 +122,10 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 		{
 			if (buyOption == 0)
 			{
+				if (curItem.curLevel == curItem.maxLevel)
+				{
+					return;
+				}
 				RValue itemName = curItem.itemName;
 				RValue returnVal;
 				RValue** args = new RValue*[1];
@@ -148,6 +154,10 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 		{
 			if (buyOption == 0)
 			{
+				if (curItem.curLevel == curItem.maxLevel)
+				{
+					return;
+				}
 				if (curItem.curLevel == curItem.maxLevel - 1 && curItem.canSuper)
 				{
 					RValue itemName = curItem.itemName;
@@ -187,11 +197,106 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 			}
 			break;
 		}
+		case SANDBOXITEMTYPE_Collab:
+		{
+			if (buyOption == 0)
+			{
+				if (curItem.curLevel == curItem.maxLevel)
+				{
+					return;
+				}
+				RValue itemName = curItem.itemName;
+				RValue returnVal;
+				RValue** args = new RValue*[1];
+				args[0] = &itemName;
+
+				RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
+				RValue attacks = getInstanceVariable(player, GML_attacks);
+
+				RValue weaponCollabs = getInstanceVariable(playerManagerInstance, GML_weaponCollabs);
+				RValue weapon = g_ModuleInterface->CallBuiltin("variable_instance_get", { weaponCollabs, itemName });
+				RValue config = getInstanceVariable(weapon, GML_config);
+				RValue combos = getInstanceVariable(config, GML_combos);
+				
+				RValue attackComboOne = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, combos[0] });
+				RValue attackComboTwo = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, combos[1] });
+				RValue tempWeapon;
+				RValue tempConfig;
+				RValue tempGainedMods = g_ModuleInterface->CallBuiltin("array_create", { 0 });
+				g_RunnerInterface.StructCreate(&tempWeapon);
+				g_RunnerInterface.StructCreate(&tempConfig);
+				g_RunnerInterface.StructAddRValue(&tempConfig, "gainedMods", &tempGainedMods);
+				g_RunnerInterface.StructAddRValue(&tempWeapon, "config", &tempConfig);
+				if (attackComboOne.m_Kind != VALUE_UNDEFINED)
+				{
+					g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, "attackComboOne", attackComboOne });
+				}
+				if (attackComboTwo.m_Kind != VALUE_UNDEFINED)
+				{
+					g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, "attackComboTwo", attackComboTwo });
+				}
+				g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, combos[0], tempWeapon });
+				g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, combos[1], tempWeapon });
+
+				origAddCollabPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
+				if (attackComboOne.m_Kind != VALUE_UNDEFINED)
+				{
+					g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, combos[0], attackComboOne });
+					g_ModuleInterface->CallBuiltin("ds_map_delete", { attacks, "attackComboOne" });
+				}
+				if (attackComboTwo.m_Kind != VALUE_UNDEFINED)
+				{
+					g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, combos[1], attackComboTwo });
+					g_ModuleInterface->CallBuiltin("ds_map_delete", { attacks, "attackComboTwo" });
+				}
+			}
+			else
+			{
+				RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
+				RValue attacks = getInstanceVariable(player, GML_attacks);
+				RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curItem.itemName });
+				if (playerWeapon.m_Kind == VALUE_UNDEFINED)
+				{
+					return;
+				}
+				RValue config = getInstanceVariable(playerWeapon, GML_config);
+				RValue optionID = getInstanceVariable(config, GML_optionID);
+				RValue weaponCollabs = getInstanceVariable(playerManagerInstance, GML_weaponCollabs);
+				RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_struct_get", { weaponCollabs, optionID });
+				setInstanceVariable(curWeapon, GML_level, 0);
+				g_ModuleInterface->CallBuiltin("ds_map_delete", { attacks, optionID });
+			}
+			break;
+		}
 		default:
 		{
 			g_ModuleInterface->Print(CM_RED, "ERROR: COULDN'T HANDLE SANDBOX ITEM INTERACT");
 		}
 	}
+}
+
+int getSpriteIndexFromAttackName(std::string& attackID)
+{
+	if (attackID.empty())
+	{
+		return sprUnknownIconButtonIndex;
+	}
+
+	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+	RValue attackIndex = getInstanceVariable(attackController, GML_attackIndex);
+	RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndex, attackID });
+	if (curWeapon.m_Kind != VALUE_UNDEFINED)
+	{
+		RValue config = getInstanceVariable(curWeapon, GML_config);
+		int optionIcon = static_cast<int>(lround(getInstanceVariable(config, GML_optionIcon).m_Real));
+		if (optionIcon == sprBulletTempIndex)
+		{
+			return sprUnknownIconButtonIndex;
+		}
+		return optionIcon;
+	}
+	
+	return sprUnknownIconButtonIndex;
 }
 
 int cursorLifetime = 0;
@@ -249,6 +354,25 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.m_Real)), curLevel, static_cast<int>(lround(maxLevel.m_Real)), false, SANDBOXITEMTYPE_Weapon));
 		}
 
+		RValue weaponCollabs = getInstanceVariable(Self, GML_weaponCollabs);
+		RValue weaponCollabNames = g_ModuleInterface->CallBuiltin("struct_get_names", { weaponCollabs });
+		int weaponCollabsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { weaponCollabNames }).m_Real);
+		for (int i = 0; i < weaponCollabsLength; i++)
+		{
+			RValue curWeaponName = weaponCollabNames[i];
+			RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_struct_get", { weaponCollabs, curWeaponName });
+			RValue config = getInstanceVariable(curWeapon, GML_config);
+			RValue optionIcon = getInstanceVariable(config, GML_optionIcon);
+			int curLevel = 0;
+			RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curWeaponName });
+			if (playerWeapon.m_Kind != VALUE_UNDEFINED)
+			{
+				RValue playerWeaponConfig = getInstanceVariable(playerWeapon, GML_config);
+				curLevel = static_cast<int>(lround(getInstanceVariable(playerWeaponConfig, GML_level).m_Real));
+			}
+			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.m_Real)), curLevel, 1, false, SANDBOXITEMTYPE_Collab));
+		}
+
 		RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
 		RValue items = getInstanceVariable(Self, GML_items);
 		RValue unlockedItems = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerSave, "unlockedItems" });
@@ -260,7 +384,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			RValue optionIcon = getInstanceVariable(curItem, GML_optionIcon);
 			RValue maxLevel = getInstanceVariable(curItem, GML_maxLevel);
 			RValue optionIconSuper = getInstanceVariable(curItem, GML_optionIcon_Super);
-			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && static_cast<int>(optionIconSuper.m_Real) != 2173;
+			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && static_cast<int>(optionIconSuper.m_Real) != sprBulletTempIndex;
 			int curLevel = static_cast<int>(lround(getInstanceVariable(curItem, GML_level).m_Real)) + 1;
 			itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIcon.m_Real)), curLevel, static_cast<int>(lround(maxLevel.m_Real) + canSuper), canSuper, SANDBOXITEMTYPE_Item));
 		}
@@ -447,7 +571,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 
 	if (!paused.AsBool() && sandboxOptionList[1].isChecked && !isInSandboxMenu)
 	{
-		std::vector<std::pair<double, int>> damageList;
+		std::vector<std::pair<double, std::string>> damageList;
 		for (auto& damagePerFramePair : damagePerFrameMap)
 		{
 			damageData curDamageData = damagePerFramePair.second;
@@ -458,15 +582,25 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				totalDamage += damage;
 				count++;
 			}
-			damageList.push_back(std::pair<double, int>(totalDamage / count * 60, damagePerFramePair.first));
+			damageList.push_back(std::pair<double, std::string>(totalDamage / count * 60, damagePerFramePair.first));
 		}
 		sort(damageList.begin(), damageList.end());
 		for (int i = 0; i < 8 && i < damageList.size(); i++)
 		{
 			int curIndex = static_cast<int>(damageList.size()) - i - 1;
-			g_ModuleInterface->CallBuiltin("draw_sprite", { damageList[curIndex].second, 0, 30, 110 + i * 30 });
+			int spriteIndex = getSpriteIndexFromAttackName(damageList[curIndex].second);
+			g_ModuleInterface->CallBuiltin("draw_sprite", { spriteIndex, 0, 30, 110 + i * 30});
 			g_ModuleInterface->CallBuiltin("draw_set_halign", { 0 });
 			g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 30, 110 + i * 30, std::format("{:.5e}", damageList[curIndex].first), 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1 });
+			if (spriteIndex == sprUnknownIconButtonIndex)
+			{
+				std::string text = "UNKNOWN ID";
+				if (!damageList[curIndex].second.empty())
+				{
+					text = damageList[curIndex].second;
+				}
+				g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 100, 110 + i * 30, text, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1 });
+			}
 		}
 	}
 }
@@ -487,5 +621,13 @@ void EnemyStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		RValue EndStopMethod = getInstanceVariable(Self, GML_EndStop);
 		RValue EndStopMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
 		g_ModuleInterface->CallBuiltin("method_call", { EndStopMethod, EndStopMethodArr });
+	}
+}
+
+void PlayerMouse54Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (isInSandboxMenu)
+	{
+		callbackManagerInterfacePtr->CancelOriginalFunction();
 	}
 }

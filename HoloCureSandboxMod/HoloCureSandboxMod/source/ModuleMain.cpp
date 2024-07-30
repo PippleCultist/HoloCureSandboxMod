@@ -21,6 +21,7 @@ PFUNC_YYGMLScript origAddAttackPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origRemoveAttackPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript = nullptr;
+PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript = nullptr;
 
 CInstance* globalInstance = nullptr;
 
@@ -35,6 +36,8 @@ int sprShopIconSelectedIndex = -1;
 int sprHudShopButtonIndex = -1;
 int sprHudToggleButtonIndex = -1;
 int sprHudOptionButtonIndex = -1;
+int sprUnknownIconButtonIndex = -1;
+int sprBulletTempIndex = -1;
 
 EXPORTED AurieStatus ModuleInitialize(
 	IN AurieModule* Module,
@@ -88,6 +91,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Enemy_Step_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Player_Mouse_54", PlayerMouse54Before, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Player_Mouse_54");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CanSubmitScore_gml_Object_obj_PlayerManager_Create_0", CanSubmitScoreFuncBefore, nullptr, nullptr)))
 	{
@@ -124,6 +132,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_ApplyDamage_gml_Object_obj_BaseMob_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddCollab_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddCollabPlayerManagerOtherScript)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_AddCollab_gml_Object_obj_PlayerManager_Other_24");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	g_RunnerInterface = g_ModuleInterface->GetRunnerInterface();
 	g_ModuleInterface->GetGlobalInstance(&globalInstance);
@@ -139,6 +152,8 @@ EXPORTED AurieStatus ModuleInitialize(
 	sprHudShopButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_shopButton" }).AsReal());
 	sprHudToggleButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_toggleButton" }).AsReal());
 	sprHudOptionButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_OptionButton" }).AsReal());
+	sprUnknownIconButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_UnknownIcon" }).AsReal());
+	sprBulletTempIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_BulletTemp" }).AsReal());
 
 	for (int i = 0; i < std::extent<decltype(VariableNamesStringsArr)>::value; i++)
 	{
