@@ -324,6 +324,10 @@ int getSpriteIndexFromAttackName(std::string& attackID)
 
 	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 	RValue attackIndex = getInstanceVariable(attackController, GML_attackIndex);
+	if (attackIndex.m_Kind == VALUE_UNDEFINED)
+	{
+		return sprUnknownIconButtonIndex;
+	}
 	RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndex, attackID });
 	if (curWeapon.m_Kind != VALUE_UNDEFINED)
 	{
