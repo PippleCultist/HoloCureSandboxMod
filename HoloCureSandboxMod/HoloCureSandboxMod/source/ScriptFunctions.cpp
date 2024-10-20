@@ -5,7 +5,7 @@
 #include "CodeEvents.h"
 
 extern CallbackManagerInterface* callbackManagerInterfacePtr;
-extern std::vector<sandboxCheckBox> sandboxOptionList;
+extern std::vector<sandboxMenuData*> sandboxOptionList;
 
 std::unordered_map<std::string, damageData> damagePerFrameMap;
 
@@ -43,7 +43,8 @@ RValue& ApplyDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue
 		}
 
 		// Give enemies shield equal to the amount of damage they will take if immortal enemies is turned on
-		if (sandboxOptionList[0].isChecked)
+		sandboxCheckBox* checkBox = reinterpret_cast<sandboxCheckBox*>(sandboxOptionList[0]);
+		if (checkBox->isChecked)
 		{
 			if (damageAmount > 0)
 			{
@@ -57,5 +58,24 @@ RValue& ApplyDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue
 		}
 		damagePerFrameMap[attackID].curFrameDamage += damageAmount;
 	}
+	return ReturnValue;
+}
+
+RValue& GameOverPlayerManagerCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", 0 });
+	g_ModuleInterface->CallBuiltin("variable_global_set", { "haluLevel", 0 });
+	return ReturnValue;
+}
+
+RValue& InitializeCharacterPlayerManagerCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	damagePerFrameMap.clear();
+	return ReturnValue;
+}
+
+RValue& DoAchievementBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	callbackManagerInterfacePtr->CancelOriginalFunction();
 	return ReturnValue;
 }

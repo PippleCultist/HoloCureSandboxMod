@@ -4,6 +4,7 @@
 #include "ScriptFunctions.h"
 #include "CodeEvents.h"
 #include "ModuleMain.h"
+#include <thread>
 using namespace Aurie;
 using namespace YYTK;
 
@@ -26,11 +27,15 @@ PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origEndStopBaseMobCreateScript = nullptr;
 
 CInstance* globalInstance = nullptr;
+std::thread framePauseThread;
 
 int objAttackControllerIndex = -1;
 int objPlayerIndex = -1;
 int objInputManagerIndex = -1;
 int objEnemyIndex = -1;
+int objStickerIndex = -1;
+int objStageManagerIndex = -1;
+int objHoloAnvilIndex = -1;
 int sprShopItemBGIndex = -1;
 int sprShopIconIndex = -1;
 int sprShopLevelsEmptyIndex = -1;
@@ -94,6 +99,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Player_Mouse_54");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_PlayerManager_Alarm_0", PlayerManagerAlarm0Before, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_PlayerManager_Alarm_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CanSubmitScore_gml_Object_obj_PlayerManager_Create_0", CanSubmitScoreFuncBefore, nullptr, nullptr)))
 	{
@@ -145,6 +155,21 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_EndStop_gml_Object_obj_BaseMob_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_GameOver_gml_Object_obj_PlayerManager_Create_0", GameOverPlayerManagerCreateBefore, nullptr, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_GameOver_gml_Object_obj_PlayerManager_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_DoAchievement", DoAchievementBefore, nullptr, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_DoAchievement");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0", InitializeCharacterPlayerManagerCreateBefore, nullptr, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	g_RunnerInterface = g_ModuleInterface->GetRunnerInterface();
 	g_ModuleInterface->GetGlobalInstance(&globalInstance);
@@ -153,6 +178,9 @@ EXPORTED AurieStatus ModuleInitialize(
 	objPlayerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).AsReal());
 	objInputManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_InputManager" }).AsReal());
 	objEnemyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Enemy" }).AsReal());
+	objStickerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Sticker" }).AsReal());
+	objStageManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_StageManager" }).AsReal());
+	objHoloAnvilIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoAnvil" }).AsReal());
 	sprShopItemBGIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopItemBG" }).AsReal());
 	sprShopIconIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopIcon" }).AsReal());
 	sprShopLevelsEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopLevels_Empty" }).AsReal());
@@ -172,6 +200,10 @@ EXPORTED AurieStatus ModuleInitialize(
 		}
 		GMLVarIndexMapGMLHash[i] = std::move(g_ModuleInterface->CallBuiltin("variable_get_hash", { VariableNamesStringsArr[i] }));
 	}
+
+	framePauseThread = std::thread(framePauseThreadHandler);
+
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Finished initializing");
 
 	return AURIE_SUCCESS;
 }

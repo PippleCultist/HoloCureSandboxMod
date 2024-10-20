@@ -3,7 +3,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.0.3"
+#define VERSION_NUM "v1.0.4"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
@@ -39,6 +39,11 @@
 	DO(attackID) \
 	DO(weaponCollabs) \
 	DO(combos) \
+	DO(STICKERS) \
+	DO(x) \
+	DO(y) \
+	DO(depth) \
+	DO(stickerData) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -72,6 +77,9 @@ extern int objAttackControllerIndex;
 extern int objPlayerIndex;
 extern int objInputManagerIndex;
 extern int objEnemyIndex;
+extern int objStickerIndex;
+extern int objStageManagerIndex;
+extern int objHoloAnvilIndex;
 extern int sprShopItemBGIndex;
 extern int sprShopIconIndex;
 extern int sprShopLevelsEmptyIndex;
