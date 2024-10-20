@@ -12,3 +12,5 @@ A Holocure mod that adds sandbox tools to make it easier to track dps and create
 ## Sandbox Menu Buttons
 - Press `Y` to open the sandbox menu. This contains all your currently unlocked weapons and items.
 - Press `P` to pause all the enemies.
+- Press `N` to pause the game and enable per frame increment
+- Press `M` while the game is paused to go to the next frame
