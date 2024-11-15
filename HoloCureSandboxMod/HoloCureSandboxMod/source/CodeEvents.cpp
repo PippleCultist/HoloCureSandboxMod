@@ -440,7 +440,7 @@ int getSpriteIndexFromAttackName(std::string& attackID)
 	if (curWeapon.m_Kind != VALUE_UNDEFINED)
 	{
 		RValue config = getInstanceVariable(curWeapon, GML_config);
-		int optionIcon = static_cast<int>(lround(getInstanceVariable(config, GML_optionIcon).m_Real));
+		int optionIcon = static_cast<int>(lround(getInstanceVariable(config, GML_optionIcon).AsReal()));
 		if (optionIcon == sprBulletTempIndex)
 		{
 			return sprUnknownIconButtonIndex;
@@ -503,7 +503,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				RValue playerWeaponConfig = getInstanceVariable(playerWeapon, GML_config);
 				curLevel = static_cast<int>(lround(getInstanceVariable(playerWeaponConfig, GML_level).m_Real));
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.m_Real)), curLevel, static_cast<int>(lround(maxLevel.m_Real)), false, SANDBOXITEMTYPE_Weapon));
+			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.AsReal())), curLevel, static_cast<int>(lround(maxLevel.m_Real)), false, SANDBOXITEMTYPE_Weapon));
 		}
 
 		RValue weaponCollabs = getInstanceVariable(Self, GML_weaponCollabs);
@@ -522,7 +522,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				RValue playerWeaponConfig = getInstanceVariable(playerWeapon, GML_config);
 				curLevel = static_cast<int>(lround(getInstanceVariable(playerWeaponConfig, GML_level).m_Real));
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.m_Real)), curLevel, 1, false, SANDBOXITEMTYPE_Collab));
+			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.AsReal())), curLevel, 1, false, SANDBOXITEMTYPE_Collab));
 		}
 
 		RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
@@ -536,18 +536,18 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			RValue optionIconNormal = getInstanceVariable(curItem, GML_optionIcon_Normal);
 			RValue maxLevel = getInstanceVariable(curItem, GML_maxLevel);
 			RValue optionIconSuper = getInstanceVariable(curItem, GML_optionIcon_Super);
-			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && static_cast<int>(optionIconSuper.m_Real) != sprBulletTempIndex;
+			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && static_cast<int>(optionIconSuper.AsReal()) != sprBulletTempIndex;
 			int curLevel = static_cast<int>(lround(getInstanceVariable(curItem, GML_level).m_Real)) + 1;
 			if (canSuper)
 			{
 				bool isSuper = curLevel >= static_cast<int>(lround(maxLevel.m_Real) + 1);
-				itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIconSuper.m_Real)), isSuper, 1, true, SANDBOXITEMTYPE_Item));
+				itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIconSuper.AsReal())), isSuper, 1, true, SANDBOXITEMTYPE_Item));
 				if (isSuper)
 				{
 					curLevel = 0;
 				}
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIconNormal.m_Real)), curLevel, lround(maxLevel.m_Real), false, SANDBOXITEMTYPE_Item));
+			itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIconNormal.AsReal())), curLevel, lround(maxLevel.m_Real), false, SANDBOXITEMTYPE_Item));
 		}
 
 		RValue availableStickers = g_ModuleInterface->CallBuiltin("variable_global_get", { "availableStickers" });
@@ -560,7 +560,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			RValue curSticker = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curStickerName });
 			RValue optionIcon = getInstanceVariable(curSticker, GML_optionIcon);
 			int level = static_cast<int>(!g_ModuleInterface->CallBuiltin("array_contains", { availableStickers, curStickerName }).AsBool());
-			itemDataList.push_back(sandboxShopItemData(std::string(curStickerName.AsString()), static_cast<int>(lround(optionIcon.m_Real)), level, 1, false, SANDBOXITEMTYPE_Stamp));
+			itemDataList.push_back(sandboxShopItemData(std::string(curStickerName.AsString()), static_cast<int>(lround(optionIcon.AsReal())), level, 1, false, SANDBOXITEMTYPE_Stamp));
 		}
 		
 		// Handle drawing sandbox item menu

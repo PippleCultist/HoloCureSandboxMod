@@ -3,7 +3,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.0.4"
+#define VERSION_NUM "v1.0.5"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
