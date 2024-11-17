@@ -25,6 +25,7 @@ PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origEndStopBaseMobCreateScript = nullptr;
+HWND hWnd;
 
 CInstance* globalInstance = nullptr;
 std::thread framePauseThread;
@@ -200,6 +201,8 @@ EXPORTED AurieStatus ModuleInitialize(
 		}
 		GMLVarIndexMapGMLHash[i] = std::move(g_ModuleInterface->CallBuiltin("variable_get_hash", { VariableNamesStringsArr[i] }));
 	}
+
+	hWnd = FindWindow(NULL, L"HoloCure");
 
 	framePauseThread = std::thread(framePauseThreadHandler);
 

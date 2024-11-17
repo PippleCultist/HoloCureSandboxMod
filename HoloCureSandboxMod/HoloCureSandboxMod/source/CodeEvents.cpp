@@ -5,6 +5,7 @@
 
 extern std::unordered_map<std::string, damageData> damagePerFrameMap;
 extern CallbackManagerInterface* callbackManagerInterfacePtr;
+extern HWND hWnd;
 
 bool isInSandboxMenu = false;
 bool prevIsTimePaused = false;
@@ -66,11 +67,16 @@ void createAnvil()
 	RValue sticker = g_ModuleInterface->CallBuiltin("instance_create_depth", { xPos, yPos.m_Real - 20, depth, objHoloAnvilIndex });
 }
 
+bool isKeyPressed(int vKey)
+{
+	return GetForegroundWindow() == hWnd && (GetAsyncKeyState(vKey) & 0xFFFE) != 0;
+}
+
 void framePauseThreadHandler()
 {
 	while (true)
 	{
-		if ((GetAsyncKeyState('N') & 0xFFFE) != 0)
+		if (isKeyPressed('N'))
 		{
 			if (!isProcessPausedButtonPressed)
 			{
@@ -84,7 +90,7 @@ void framePauseThreadHandler()
 		}
 		if (isProcessPaused)
 		{
-			if ((GetAsyncKeyState('M') & 0xFFFE) != 0)
+			if (isKeyPressed('M'))
 			{
 				if (!isNextFrameButtonPressed)
 				{
@@ -141,7 +147,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 	}
 
 	bool hasUpdatedTimePaused = false;
-	if ((GetAsyncKeyState('Y') & 0xFFFE) != 0)
+	if (isKeyPressed('Y'))
 	{
 		if (!isSandboxMenuButtonPressed)
 		{
@@ -177,7 +183,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 
 	if (!isInSandboxMenu)
 	{
-		if ((GetAsyncKeyState('P') & 0xFFFE) != 0)
+		if (isKeyPressed('P'))
 		{
 			if (!isTimePausedButtonPressed)
 			{
