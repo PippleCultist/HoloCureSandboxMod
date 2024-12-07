@@ -46,6 +46,23 @@ struct sandboxShopItemData
 	}
 };
 
+void drawTextOutline(CInstance* Self, double xPos, double yPos, std::string text, double outlineWidth, int outlineColor, double numOutline, double linePixelSeparation, double pixelsBeforeLineBreak, int textColor, double alpha)
+{
+	RValue** args = new RValue*[10];
+	args[0] = new RValue(xPos);
+	args[1] = new RValue(yPos);
+	args[2] = new RValue(text);
+	args[3] = new RValue(outlineWidth);
+	args[4] = new RValue(static_cast<double>(outlineColor));
+	args[5] = new RValue(numOutline);
+	args[6] = new RValue(linePixelSeparation);
+	args[7] = new RValue(pixelsBeforeLineBreak);
+	args[8] = new RValue(static_cast<double>(textColor));
+	args[9] = new RValue(alpha);
+	RValue returnVal;
+	origDrawTextOutlineScript(Self, nullptr, returnVal, 10, args);
+}
+
 void setTimeToThirtyMin()
 {
 	RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
@@ -111,8 +128,9 @@ std::vector<sandboxMenuData*> sandboxOptionList = {
 	new sandboxCheckBox(10, 90, false, "Immortal Enemies"),
 	new sandboxCheckBox(10, 125, true, "DPS Tracker"),
 	new sandboxCheckBox(10, 160, false, "Enable Debug"),
-	new sandboxButton(10, 195, setTimeToThirtyMin, "Go to 30:00"),
-	new sandboxButton(10, 230, createAnvil, "Create anvil"),
+	new sandboxCheckBox(10, 195, false, "Show Mob HP"),
+	new sandboxButton(10, 230, setTimeToThirtyMin, "Go to 30:00"),
+	new sandboxButton(10, 265, createAnvil, "Create anvil"),
 };
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -823,4 +841,20 @@ void PlayerManagerAlarm0Before(std::tuple<CInstance*, CInstance*, CCode*, int, R
 {
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", 0 });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "haluLevel", 0 });
+}
+
+void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	sandboxCheckBox* checkBox = reinterpret_cast<sandboxCheckBox*>(sandboxOptionList[3]);
+	if (checkBox->isChecked)
+	{
+		CInstance* Self = std::get<0>(Args);
+		RValue xPos = getInstanceVariable(Self, GML_x);
+		RValue yPos = getInstanceVariable(Self, GML_y);
+		RValue curHP = getInstanceVariable(Self, GML_currentHP);
+		RValue maxHP = getInstanceVariable(Self, GML_HP);
+		std::string text = std::format("{} / {}", static_cast<int>(lround(curHP.AsReal())), static_cast<int>(lround(maxHP.AsReal())));
+		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 5, text, 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
+	}
 }

@@ -3,7 +3,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.0.6"
+#define VERSION_NUM "v1.0.7"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
@@ -44,6 +44,8 @@
 	DO(y) \
 	DO(depth) \
 	DO(stickerData) \
+	DO(HP) \
+	DO(currentHP) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -70,6 +72,7 @@ extern PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript;
 extern PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript;
 extern PFUNC_YYGMLScript origEndStopBaseMobCreateScript;
+extern PFUNC_YYGMLScript origDrawTextOutlineScript;
 
 extern TRoutine origStructGetFromHashFunc;
 extern TRoutine origStructSetFromHashFunc;

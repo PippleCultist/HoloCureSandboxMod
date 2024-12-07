@@ -50,3 +50,4 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerMouse54Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerAlarm0Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

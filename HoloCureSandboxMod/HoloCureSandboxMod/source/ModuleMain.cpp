@@ -25,6 +25,7 @@ PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origEndStopBaseMobCreateScript = nullptr;
+PFUNC_YYGMLScript origDrawTextOutlineScript = nullptr;
 HWND hWnd;
 
 CInstance* globalInstance = nullptr;
@@ -105,6 +106,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_PlayerManager_Alarm_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_BaseMob_Draw_0", nullptr, BaseMobDrawAfter)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_BaseMob_Draw_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CanSubmitScore@gml_Object_obj_PlayerManager_Create_0", CanSubmitScoreFuncBefore, nullptr, nullptr)))
 	{
@@ -169,6 +175,11 @@ EXPORTED AurieStatus ModuleInitialize(
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_InitializeCharacter@gml_Object_obj_PlayerManager_Create_0", InitializeCharacterPlayerManagerCreateBefore, nullptr, nullptr)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_InitializeCharacter@gml_Object_obj_PlayerManager_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_draw_text_outline", nullptr, nullptr, &origDrawTextOutlineScript)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_draw_text_outline");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
