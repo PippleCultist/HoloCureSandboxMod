@@ -140,10 +140,10 @@ std::vector<sandboxMenuData*> sandboxOptionList = {
 	new sandboxCheckBox(10, 90, false, "Immortal Enemies"),
 	new sandboxCheckBox(10, 125, true, "DPS Tracker"),
 	new sandboxCheckBox(10, 160, false, "Enable Debug"),
-	new sandboxCheckBox(10, 195, false, "Show Mob HP"),
+	new sandboxCheckBox(10, 195, false, "Show Mob Stats"),
 	new sandboxButton(10, 230, setTimeToThirtyMin, "Go to 30:00"),
 	new sandboxButton(10, 265, setTimeToFortyMin, "Go to 40:00"),
-	new sandboxButton(10, 300, createAnvil, "Create anvil"),
+	new sandboxButton(10, 300, createAnvil, "Create Anvil"),
 };
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -871,9 +871,9 @@ void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		std::string text = std::format("HP: {} / {}", static_cast<int>(lround(curHP.AsReal())), static_cast<int>(lround(maxHP.AsReal())));
 		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
 		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 5, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
-		text = std::format("ATK: {}", static_cast<int>(lround(atk.AsReal())));
+		text = std::format("ATK: {:.3e}", atk.AsReal());
 		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 15, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
-		text = std::format("SPD: {}", static_cast<int>(lround(spd.AsReal())));
+		text = std::format("SPD: {:.3e}", spd.AsReal());
 		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 25, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
 	}
 }
