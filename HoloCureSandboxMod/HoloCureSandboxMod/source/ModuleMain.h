@@ -46,6 +46,8 @@
 	DO(stickerData) \
 	DO(HP) \
 	DO(currentHP) \
+	DO(ATK) \
+	DO(SPD) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames

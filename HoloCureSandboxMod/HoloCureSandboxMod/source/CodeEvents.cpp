@@ -75,6 +75,18 @@ void setTimeToThirtyMin()
 	g_ModuleInterface->CallBuiltin("variable_struct_set", { stageManager, "mobSpawnChoices", mobSpawnChoices });
 }
 
+void setTimeToFortyMin()
+{
+	RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
+	timeArr[0] = 0;
+	timeArr[1] = 39;
+	timeArr[2] = 59;
+	RValue stageManager = g_ModuleInterface->CallBuiltin("instance_find", { objStageManagerIndex, 0 });
+	RValue mobSpawnChoices;
+	g_RunnerInterface.StructCreate(&mobSpawnChoices);
+	g_ModuleInterface->CallBuiltin("variable_struct_set", { stageManager, "mobSpawnChoices", mobSpawnChoices });
+}
+
 void createAnvil()
 {
 	RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
@@ -130,7 +142,8 @@ std::vector<sandboxMenuData*> sandboxOptionList = {
 	new sandboxCheckBox(10, 160, false, "Enable Debug"),
 	new sandboxCheckBox(10, 195, false, "Show Mob HP"),
 	new sandboxButton(10, 230, setTimeToThirtyMin, "Go to 30:00"),
-	new sandboxButton(10, 265, createAnvil, "Create anvil"),
+	new sandboxButton(10, 265, setTimeToFortyMin, "Go to 40:00"),
+	new sandboxButton(10, 300, createAnvil, "Create anvil"),
 };
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -853,8 +866,14 @@ void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		RValue yPos = getInstanceVariable(Self, GML_y);
 		RValue curHP = getInstanceVariable(Self, GML_currentHP);
 		RValue maxHP = getInstanceVariable(Self, GML_HP);
-		std::string text = std::format("{} / {}", static_cast<int>(lround(curHP.AsReal())), static_cast<int>(lround(maxHP.AsReal())));
+		RValue atk = getInstanceVariable(Self, GML_ATK);
+		RValue spd = getInstanceVariable(Self, GML_SPD);
+		std::string text = std::format("HP: {} / {}", static_cast<int>(lround(curHP.AsReal())), static_cast<int>(lround(maxHP.AsReal())));
 		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 5, text, 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
+		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 5, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
+		text = std::format("ATK: {}", static_cast<int>(lround(atk.AsReal())));
+		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 15, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
+		text = std::format("SPD: {}", static_cast<int>(lround(spd.AsReal())));
+		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 25, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
 	}
 }
