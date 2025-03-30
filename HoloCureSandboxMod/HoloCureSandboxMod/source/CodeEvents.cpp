@@ -530,9 +530,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 		{
 			RValue curWeaponName = unlockedWeapons[i];
 			RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndex, curWeaponName });
-			callbackManagerInterfacePtr->LogToFile(MODNAME, "weapon kind: %d weapon name: %s", curWeapon.m_Kind, curWeaponName.ToString().data());
 			RValue config = getInstanceVariable(curWeapon, GML_config);
-			callbackManagerInterfacePtr->LogToFile(MODNAME, "config kind: %d", config.m_Kind);
 			RValue optionIcon = getInstanceVariable(config, GML_optionIcon);
 			RValue maxLevel = getInstanceVariable(config, GML_maxLevel);
 			int curLevel = 0;
