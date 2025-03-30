@@ -1,5 +1,5 @@
 #include <Aurie/shared.hpp>
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 #include "ScriptFunctions.h"
 #include "CodeEvents.h"
@@ -186,23 +186,23 @@ EXPORTED AurieStatus ModuleInitialize(
 	g_RunnerInterface = g_ModuleInterface->GetRunnerInterface();
 	g_ModuleInterface->GetGlobalInstance(&globalInstance);
 
-	objAttackControllerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_AttackController" }).AsReal());
-	objPlayerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).AsReal());
-	objInputManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_InputManager" }).AsReal());
-	objEnemyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Enemy" }).AsReal());
-	objStickerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Sticker" }).AsReal());
-	objStageManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_StageManager" }).AsReal());
-	objHoloAnvilIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoAnvil" }).AsReal());
-	sprShopItemBGIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopItemBG" }).AsReal());
-	sprShopIconIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopIcon" }).AsReal());
-	sprShopLevelsEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopLevels_Empty" }).AsReal());
-	sprShopLevelsFilledIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopLevels_Filled" }).AsReal());
-	sprShopIconSelectedIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopIconSelected" }).AsReal());
-	sprHudShopButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_shopButton" }).AsReal());
-	sprHudToggleButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_toggleButton" }).AsReal());
-	sprHudOptionButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_OptionButton" }).AsReal());
-	sprUnknownIconButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_UnknownIcon" }).AsReal());
-	sprBulletTempIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_BulletTemp" }).AsReal());
+	objAttackControllerIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_AttackController" }).ToInt32();
+	objPlayerIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).ToInt32();
+	objInputManagerIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_InputManager" }).ToInt32();
+	objEnemyIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Enemy" }).ToInt32();
+	objStickerIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Sticker" }).ToInt32();
+	objStageManagerIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_StageManager" }).ToInt32();
+	objHoloAnvilIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoAnvil" }).ToInt32();
+	sprShopItemBGIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopItemBG" }).ToInt32();
+	sprShopIconIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopIcon" }).ToInt32();
+	sprShopLevelsEmptyIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopLevels_Empty" }).ToInt32();
+	sprShopLevelsFilledIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopLevels_Filled" }).ToInt32();
+	sprShopIconSelectedIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_shopIconSelected" }).ToInt32();
+	sprHudShopButtonIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_shopButton" }).ToInt32();
+	sprHudToggleButtonIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_toggleButton" }).ToInt32();
+	sprHudOptionButtonIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_OptionButton" }).ToInt32();
+	sprUnknownIconButtonIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_UnknownIcon" }).ToInt32();
+	sprBulletTempIndex = g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_BulletTemp" }).ToInt32();
 
 	for (int i = 0; i < std::extent<decltype(VariableNamesStringsArr)>::value; i++)
 	{

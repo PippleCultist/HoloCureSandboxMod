@@ -1,5 +1,5 @@
 #include <Aurie/shared.hpp>
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include "ScriptFunctions.h"
 #include "CommonFunctions.h"
 #include "CodeEvents.h"
@@ -19,13 +19,13 @@ RValue& CanSubmitScoreFuncBefore(CInstance* Self, CInstance* Other, RValue& Retu
 
 RValue& ApplyDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	if (getInstanceVariable(Self, GML_isEnemy).AsBool())
+	if (getInstanceVariable(Self, GML_isEnemy).ToBoolean())
 	{
 		double damageAmount = g_ModuleInterface->CallBuiltin("round", { *Args[0] }).m_Real;
 		std::string attackID;
 		if (numArgs >= 4 && Args[3]->m_Kind == VALUE_STRING)
 		{
-			attackID = std::string(Args[3]->AsString());
+			attackID = Args[3]->ToString();
 		}
 		else
 		{
@@ -38,7 +38,7 @@ RValue& ApplyDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue
 			RValue attackIDName = getInstanceVariable(weaponAttackID, GML_attackID);
 			if (attackIDName.m_Kind == VALUE_STRING)
 			{
-				attackID = std::string(attackIDName.AsString());
+				attackID = attackIDName.ToString();
 			}
 		}
 

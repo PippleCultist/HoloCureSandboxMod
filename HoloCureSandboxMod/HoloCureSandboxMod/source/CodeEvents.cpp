@@ -160,7 +160,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	RValue paused = getInstanceVariable(Self, GML_paused);
-	if (paused.AsBool())
+	if (paused.ToBoolean())
 	{
 		return;
 	}
@@ -188,10 +188,10 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
 			if (isInSandboxMenu)
 			{
-				prevIsTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
+				prevIsTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).ToBoolean();
 				isTimePaused = true;
-				prevCanControl = getInstanceVariable(player, GML_canControl).AsBool();
-				prevMouseFollowMode = getInstanceVariable(player, GML_mouseFollowMode).AsBool();
+				prevCanControl = getInstanceVariable(player, GML_canControl).ToBoolean();
+				prevMouseFollowMode = getInstanceVariable(player, GML_mouseFollowMode).ToBoolean();
 				setInstanceVariable(player, GML_canControl, false);
 				setInstanceVariable(player, GML_mouseFollowMode, false);
 				curSandboxMenuPage = 0;
@@ -219,7 +219,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			if (!isTimePausedButtonPressed)
 			{
 				isTimePausedButtonPressed = true;
-				bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
+				bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).ToBoolean();
 				g_ModuleInterface->CallBuiltin("variable_global_set", { "timePause", !isTimePaused });
 				hasUpdatedTimePaused = true;
 			}
@@ -232,14 +232,14 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 
 	if (hasUpdatedTimePaused)
 	{
-		bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).AsBool();
+		bool isTimePaused = g_ModuleInterface->CallBuiltin("variable_global_get", { "timePause" }).ToBoolean();
 		if (isTimePaused)
 		{
-			int enemyCount = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("instance_number", { objEnemyIndex }).AsReal()));
+			int enemyCount = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("instance_number", { objEnemyIndex }).ToDouble()));
 			for (int i = 0; i < enemyCount; i++)
 			{
 				RValue instance = g_ModuleInterface->CallBuiltin("instance_find", { objEnemyIndex, i });
-				int instanceID = static_cast<int>(lround(instance.AsReal()));
+				int instanceID = static_cast<int>(lround(instance.ToDouble()));
 				CInstance* objectInstance = nullptr;
 				if (!AurieSuccess(g_ModuleInterface->GetInstanceObject(instanceID, objectInstance)))
 				{
@@ -251,11 +251,11 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		}
 		else
 		{
-			int enemyCount = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("instance_number", { objEnemyIndex }).AsReal()));
+			int enemyCount = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("instance_number", { objEnemyIndex }).ToDouble()));
 			for (int i = 0; i < enemyCount; i++)
 			{
 				RValue instance = g_ModuleInterface->CallBuiltin("instance_find", { objEnemyIndex, i });
-				int instanceID = static_cast<int>(lround(instance.AsReal()));
+				int instanceID = static_cast<int>(lround(instance.ToDouble()));
 				CInstance* objectInstance = nullptr;
 				if (!AurieSuccess(g_ModuleInterface->GetInstanceObject(instanceID, objectInstance)))
 				{
@@ -280,7 +280,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 				{
 					return;
 				}
-				RValue itemName = curItem.itemName;
+				RValue itemName = curItem.itemName.c_str();
 				RValue returnVal;
 				RValue** args = new RValue*[1];
 				args[0] = &itemName;
@@ -290,7 +290,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 			{
 				RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
 				RValue attacks = getInstanceVariable(player, GML_attacks);
-				RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curItem.itemName });
+				RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curItem.itemName.c_str()});
 				if (playerWeapon.m_Kind == VALUE_UNDEFINED)
 				{
 					return;
@@ -314,7 +314,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 				}
 				if (curItem.curLevel == curItem.maxLevel - 1 && curItem.canSuper)
 				{
-					RValue itemName = curItem.itemName;
+					RValue itemName = curItem.itemName.c_str();
 					RValue itemsMap = getInstanceVariable(playerManagerInstance, GML_ITEMS);
 					RValue item = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, itemName });
 					RValue maxLevel = getInstanceVariable(item, GML_maxLevel);
@@ -327,7 +327,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 				}
 				else
 				{
-					RValue itemName = curItem.itemName;
+					RValue itemName = curItem.itemName.c_str();
 					RValue returnVal;
 					RValue** args = new RValue*[1];
 					args[0] = &itemName;
@@ -337,7 +337,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 			else
 			{
 				RValue itemsMap = getInstanceVariable(playerManagerInstance, GML_ITEMS);
-				RValue itemName = curItem.itemName;
+				RValue itemName = curItem.itemName.c_str();
 				RValue item = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, itemName });
 				setInstanceVariable(item, GML_level, -1.0);
 				RValue returnVal;
@@ -360,7 +360,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 				{
 					return;
 				}
-				RValue itemName = curItem.itemName;
+				RValue itemName = curItem.itemName.c_str();
 				RValue returnVal;
 				RValue** args = new RValue*[1];
 				args[0] = &itemName;
@@ -409,7 +409,7 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 			{
 				RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
 				RValue attacks = getInstanceVariable(player, GML_attacks);
-				RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curItem.itemName });
+				RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curItem.itemName.c_str()});
 				if (playerWeapon.m_Kind == VALUE_UNDEFINED)
 				{
 					return;
@@ -437,14 +437,14 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 				RValue depth = getInstanceVariable(player, GML_depth);
 				RValue sticker = g_ModuleInterface->CallBuiltin("instance_create_depth", { xPos, yPos, depth, objStickerIndex });
 				RValue stickersMap = getInstanceVariable(playerManagerInstance, GML_STICKERS);
-				RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curItem.itemName });
+				RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curItem.itemName.c_str()});
 				setInstanceVariable(sticker, GML_stickerData, stickerData);
 				setInstanceVariable(sticker, GML_sprite_index, curItem.optionIcon);
 				RValue availableStickers = g_ModuleInterface->CallBuiltin("variable_global_get", { "availableStickers" });
 				int availableStickersLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { availableStickers }).m_Real);
 				for (int i = 0; i < availableStickersLength; i++)
 				{
-					if (availableStickers[i].AsString().compare(curItem.itemName) == 0)
+					if (availableStickers[i].ToString().compare(curItem.itemName) == 0)
 					{
 						g_ModuleInterface->CallBuiltin("array_delete", { availableStickers, i, 1 });
 						break;
@@ -473,11 +473,11 @@ int getSpriteIndexFromAttackName(std::string& attackID)
 	{
 		return sprUnknownIconButtonIndex;
 	}
-	RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndex, attackID });
+	RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndex, attackID.c_str()});
 	if (curWeapon.m_Kind != VALUE_UNDEFINED)
 	{
 		RValue config = getInstanceVariable(curWeapon, GML_config);
-		int optionIcon = static_cast<int>(lround(getInstanceVariable(config, GML_optionIcon).AsReal()));
+		int optionIcon = static_cast<int>(lround(getInstanceVariable(config, GML_optionIcon).ToDouble()));
 		if (optionIcon == sprBulletTempIndex)
 		{
 			return sprUnknownIconButtonIndex;
@@ -499,7 +499,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 	setInstanceVariable(player, GML_hpSus, 0);
 	if (isInSandboxMenu)
 	{
-		if (paused.AsBool())
+		if (paused.ToBoolean())
 		{
 			return;
 		}
@@ -515,7 +515,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 		RValue inputManager = g_ModuleInterface->CallBuiltin("instance_find", { objInputManagerIndex, 0 });
 		RValue actionTwoPressed = getInstanceVariable(inputManager, GML_actionTwoPressed);
 		RValue isRightMouseButtonPressed = g_ModuleInterface->CallBuiltin("mouse_check_button_pressed", { 2 });
-		if (actionTwoPressed.AsBool() || isRightMouseButtonPressed.AsBool())
+		if (actionTwoPressed.ToBoolean() || isRightMouseButtonPressed.ToBoolean())
 		{
 			selectedItemIndex = -1;
 		}
@@ -530,7 +530,9 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 		{
 			RValue curWeaponName = unlockedWeapons[i];
 			RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndex, curWeaponName });
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "weapon kind: %d weapon name: %s", curWeapon.m_Kind, curWeaponName.ToString().data());
 			RValue config = getInstanceVariable(curWeapon, GML_config);
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "config kind: %d", config.m_Kind);
 			RValue optionIcon = getInstanceVariable(config, GML_optionIcon);
 			RValue maxLevel = getInstanceVariable(config, GML_maxLevel);
 			int curLevel = 0;
@@ -540,7 +542,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				RValue playerWeaponConfig = getInstanceVariable(playerWeapon, GML_config);
 				curLevel = static_cast<int>(lround(getInstanceVariable(playerWeaponConfig, GML_level).m_Real));
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.AsReal())), curLevel, static_cast<int>(lround(maxLevel.m_Real)), false, SANDBOXITEMTYPE_Weapon));
+			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.ToString()), static_cast<int>(lround(optionIcon.ToDouble())), curLevel, static_cast<int>(lround(maxLevel.m_Real)), false, SANDBOXITEMTYPE_Weapon));
 		}
 
 		RValue weaponCollabs = getInstanceVariable(Self, GML_weaponCollabs);
@@ -559,7 +561,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				RValue playerWeaponConfig = getInstanceVariable(playerWeapon, GML_config);
 				curLevel = static_cast<int>(lround(getInstanceVariable(playerWeaponConfig, GML_level).m_Real));
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.AsString()), static_cast<int>(lround(optionIcon.AsReal())), curLevel, 1, false, SANDBOXITEMTYPE_Collab));
+			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.ToString()), static_cast<int>(lround(optionIcon.ToDouble())), curLevel, 1, false, SANDBOXITEMTYPE_Collab));
 		}
 
 		RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
@@ -573,18 +575,18 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			RValue optionIconNormal = getInstanceVariable(curItem, GML_optionIcon_Normal);
 			RValue maxLevel = getInstanceVariable(curItem, GML_maxLevel);
 			RValue optionIconSuper = getInstanceVariable(curItem, GML_optionIcon_Super);
-			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && static_cast<int>(optionIconSuper.AsReal()) != sprBulletTempIndex;
+			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && static_cast<int>(optionIconSuper.ToDouble()) != sprBulletTempIndex;
 			int curLevel = static_cast<int>(lround(getInstanceVariable(curItem, GML_level).m_Real)) + 1;
 			if (canSuper)
 			{
 				bool isSuper = curLevel >= static_cast<int>(lround(maxLevel.m_Real) + 1);
-				itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIconSuper.AsReal())), isSuper, 1, true, SANDBOXITEMTYPE_Item));
+				itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.ToString()), static_cast<int>(lround(optionIconSuper.ToDouble())), isSuper, 1, true, SANDBOXITEMTYPE_Item));
 				if (isSuper)
 				{
 					curLevel = 0;
 				}
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.AsString()), static_cast<int>(lround(optionIconNormal.AsReal())), curLevel, lround(maxLevel.m_Real), false, SANDBOXITEMTYPE_Item));
+			itemDataList.push_back(sandboxShopItemData(std::string(curItemsName.ToString()), static_cast<int>(lround(optionIconNormal.ToDouble())), curLevel, lround(maxLevel.m_Real), false, SANDBOXITEMTYPE_Item));
 		}
 
 		RValue availableStickers = g_ModuleInterface->CallBuiltin("variable_global_get", { "availableStickers" });
@@ -596,8 +598,8 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			RValue curStickerName = stickersKeysArr[i];
 			RValue curSticker = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curStickerName });
 			RValue optionIcon = getInstanceVariable(curSticker, GML_optionIcon);
-			int level = static_cast<int>(!g_ModuleInterface->CallBuiltin("array_contains", { availableStickers, curStickerName }).AsBool());
-			itemDataList.push_back(sandboxShopItemData(std::string(curStickerName.AsString()), static_cast<int>(lround(optionIcon.AsReal())), level, 1, false, SANDBOXITEMTYPE_Stamp));
+			int level = static_cast<int>(!g_ModuleInterface->CallBuiltin("array_contains", { availableStickers, curStickerName }).ToBoolean());
+			itemDataList.push_back(sandboxShopItemData(std::string(curStickerName.ToString()), static_cast<int>(lround(optionIcon.ToDouble())), level, 1, false, SANDBOXITEMTYPE_Stamp));
 		}
 		
 		// Handle drawing sandbox item menu
@@ -638,7 +640,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				cursorLifetime = 0;
 			}
 
-			if (selectedItemIndex == -1 && returnVal.AsBool() || selectedItemIndex == i)
+			if (selectedItemIndex == -1 && returnVal.ToBoolean() || selectedItemIndex == i)
 			{
 				g_ModuleInterface->CallBuiltin("draw_sprite", { sprShopIconSelectedIndex, 0, curXPos, curYPos + 30 });
 				g_ModuleInterface->CallBuiltin("draw_set_alpha", { .05 + abs(.15 * sin(cursorLifetime / 100.0)) });
@@ -646,11 +648,11 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				g_ModuleInterface->CallBuiltin("draw_set_alpha", { 1 });
 			}
 
-			if (selectedItemIndex == -1 && returnVal.AsBool())
+			if (selectedItemIndex == -1 && returnVal.ToBoolean())
 			{
 				RValue actionOnePressed = getInstanceVariable(inputManager, GML_actionOnePressed);
 				RValue isIconSelected = g_ModuleInterface->CallBuiltin("mouse_check_button_pressed", { 1 });
-				if (actionOnePressed.AsBool() || isIconSelected.AsBool())
+				if (actionOnePressed.ToBoolean() || isIconSelected.ToBoolean())
 				{
 					selectedItemIndex = i;
 					buyOptionIndex = 0;
@@ -686,12 +688,12 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				args[2] = &curButtonY;
 				RValue returnVal;
 				origMouseOverButtonScript(Self, nullptr, returnVal, 3, args);
-				if (returnVal.AsBool())
+				if (returnVal.ToBoolean())
 				{
 					buyOptionIndex = i;
 					RValue actionOnePressed = getInstanceVariable(inputManager, GML_actionOnePressed);
 					RValue isIconSelected = g_ModuleInterface->CallBuiltin("mouse_check_button_pressed", { 1 });
-					if (actionOnePressed.AsBool() || isIconSelected.AsBool())
+					if (actionOnePressed.ToBoolean() || isIconSelected.ToBoolean())
 					{
 						handleSandboxItemMenuInteract(Self, itemDataList[selectedItemIndex], buyOptionIndex);
 					}
@@ -718,12 +720,12 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			args[2] = &curButtonY;
 			RValue returnVal;
 			origMouseOverButtonScript(Self, nullptr, returnVal, 3, args);
-			if (returnVal.AsBool())
+			if (returnVal.ToBoolean())
 			{
 				isButtonMouseOver = true;
 				RValue actionOnePressed = getInstanceVariable(inputManager, GML_actionOnePressed);
 				RValue isIconSelected = g_ModuleInterface->CallBuiltin("mouse_check_button_pressed", { 1 });
-				if (actionOnePressed.AsBool() || isIconSelected.AsBool())
+				if (actionOnePressed.ToBoolean() || isIconSelected.ToBoolean())
 				{
 					if (i == 0)
 					{
@@ -742,7 +744,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			std::string buttonText = i == 0 ? "Prev" : "Next";
 			g_ModuleInterface->CallBuiltin("draw_sprite_ext", { sprHudShopButtonIndex, isButtonMouseOver, buttonPosX, buttonPosY, 1, 1, 0, 0xFFFFFF, 1 });
 			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-			g_ModuleInterface->CallBuiltin("draw_text_color", { buttonPosX, buttonPosY - 5, buttonText, curColor, curColor, curColor, curColor, 1 });
+			g_ModuleInterface->CallBuiltin("draw_text_color", { buttonPosX, buttonPosY - 5, buttonText.c_str(), curColor, curColor, curColor, curColor, 1});
 		}
 
 		// Handle sandbox option menu
@@ -762,12 +764,12 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			args[3] = &screenSize;
 			RValue returnVal;
 			origMouseOverButtonScript(Self, nullptr, returnVal, 4, args);
-			if (returnVal.AsBool())
+			if (returnVal.ToBoolean())
 			{
 				isButtonMouseOver = true;
 				RValue actionOnePressed = getInstanceVariable(inputManager, GML_actionOnePressed);
 				RValue isIconSelected = g_ModuleInterface->CallBuiltin("mouse_check_button_pressed", { 1 });
-				if (actionOnePressed.AsBool() || isIconSelected.AsBool())
+				if (actionOnePressed.ToBoolean() || isIconSelected.ToBoolean())
 				{
 					if (sandboxOptionList[i]->sandboxMenuDataType == SANDBOXMENUDATATYPE_CheckBox)
 					{
@@ -793,11 +795,11 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				sandboxCheckBox* checkBox = reinterpret_cast<sandboxCheckBox*>(sandboxOptionList[i]);
 				g_ModuleInterface->CallBuiltin("draw_sprite_ext", { sprHudToggleButtonIndex, isButtonMouseOver * 2 + checkBox->isChecked, xPos + 10 + 11, yPos + 11 + 2, 1, 1, 0, 0xFFFFFF, 1 });
 			}
-			g_ModuleInterface->CallBuiltin("draw_text_color", { xPos + 100, yPos + 9, sandboxOptionList[i]->text, curColor, curColor, curColor, curColor, 1});
+			g_ModuleInterface->CallBuiltin("draw_text_color", { xPos + 100, yPos + 9, sandboxOptionList[i]->text.c_str(), curColor, curColor, curColor, curColor, 1});
 		}
 	}
 
-	if (!paused.AsBool() && !isInSandboxMenu)
+	if (!paused.ToBoolean() && !isInSandboxMenu)
 	{
 		sandboxCheckBox* checkBox = reinterpret_cast<sandboxCheckBox*>(sandboxOptionList[1]);
 		if (checkBox->isChecked)
@@ -826,7 +828,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				int spriteIndex = getSpriteIndexFromAttackName(damageList[curIndex].second);
 				g_ModuleInterface->CallBuiltin("draw_sprite", { spriteIndex, 0, 30, 110 + i * 30 });
 				g_ModuleInterface->CallBuiltin("draw_set_halign", { 0 });
-				g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 30, 110 + i * 30, std::format("{:.5e}", damageList[curIndex].first), 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1 });
+				g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 30, 110 + i * 30, std::format("{:.5e}", damageList[curIndex].first).c_str(), 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1});
 				if (spriteIndex == sprUnknownIconButtonIndex)
 				{
 					std::string text = "UNKNOWN ID";
@@ -834,7 +836,7 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 					{
 						text = damageList[curIndex].second;
 					}
-					g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 100, 110 + i * 30, text, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1 });
+					g_ModuleInterface->CallBuiltin("draw_text_color", { 30 + 100, 110 + i * 30, text.c_str(), 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 1});
 				}
 			}
 		}
@@ -868,12 +870,12 @@ void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		RValue maxHP = getInstanceVariable(Self, GML_HP);
 		RValue atk = getInstanceVariable(Self, GML_ATK);
 		RValue spd = getInstanceVariable(Self, GML_SPD);
-		std::string text = std::format("HP: {} / {}", static_cast<int>(lround(curHP.AsReal())), static_cast<int>(lround(maxHP.AsReal())));
+		std::string text = std::format("HP: {} / {}", static_cast<int>(lround(curHP.ToDouble())), static_cast<int>(lround(maxHP.ToDouble())));
 		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 5, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
-		text = std::format("ATK: {:.3e}", atk.AsReal());
-		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 15, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
-		text = std::format("SPD: {:.3e}", spd.AsReal());
-		drawTextOutline(Self, xPos.AsReal(), yPos.AsReal() + 25, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
+		drawTextOutline(Self, xPos.ToDouble(), yPos.ToDouble() + 5, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
+		text = std::format("ATK: {:.3e}", atk.ToDouble());
+		drawTextOutline(Self, xPos.ToDouble(), yPos.ToDouble() + 15, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
+		text = std::format("SPD: {:.3e}", spd.ToDouble());
+		drawTextOutline(Self, xPos.ToDouble(), yPos.ToDouble() + 25, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
 	}
 }
