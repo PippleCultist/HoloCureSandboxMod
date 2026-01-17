@@ -6,6 +6,9 @@ using namespace YYTK;
 
 typedef std::tuple<CInstance*, CInstance*, CCode*, int, RValue*> CodeEventArgs;
 typedef void (*CodeEvent)(CodeEventArgs&);
+typedef void (*initFunc)();
+
+void CodeCallback(FWCodeEvent& CodeContext);
 
 struct CallbackManagerInterface : AurieInterfaceBase
 {
@@ -59,6 +62,31 @@ struct CallbackManagerInterface : AurieInterfaceBase
 	virtual AurieStatus RegisterScriptFunctionCallback(
 		IN const std::string& ModName,
 		IN const std::string& ScriptFunctionName,
+		IN PFUNC_YYGMLScript BeforeScriptFunctionRoutine,
+		IN PFUNC_YYGMLScript AfterScriptFunctionRoutine,
+		OUT PFUNC_YYGMLScript* OriginalScriptFunctionRoutine,
+		OUT int& ScriptFunctionIndex
+	);
+
+	/*
+	* Call this to register a routine that will run before the script function happens and another routine that will run after.
+	* This will run the script function after all before routines run and before any after routines run.
+	*/
+	virtual AurieStatus RegisterScriptFunctionCallback(
+		IN const std::string& ModName,
+		IN PFUNC_YYGMLScript ScriptFunctionPointer,
+		IN PFUNC_YYGMLScript BeforeScriptFunctionRoutine,
+		IN PFUNC_YYGMLScript AfterScriptFunctionRoutine,
+		OUT PFUNC_YYGMLScript* OriginalScriptFunctionRoutine
+	);
+
+	/*
+	* Call this to register a routine that will run before the script function happens and another routine that will run after.
+	* This will run the script function after all before routines run and before any after routines run.
+	*/
+	virtual AurieStatus RegisterScriptFunctionCallback(
+		IN const std::string& ModName,
+		IN PFUNC_YYGMLScript ScriptFunctionPointer,
 		IN PFUNC_YYGMLScript BeforeScriptFunctionRoutine,
 		IN PFUNC_YYGMLScript AfterScriptFunctionRoutine,
 		OUT PFUNC_YYGMLScript* OriginalScriptFunctionRoutine,
@@ -139,4 +167,9 @@ struct CallbackManagerInterface : AurieInterfaceBase
 	* WARNING: WILL HAVE UNDEFINED BEHAVIOR IF BOTH CALL AND CANCEL OCCUR
 	*/
 	virtual void CancelOriginalFunction();
+
+	/*
+	* Call this in the EVENT_RUNNER_INIT callback to register your initialization function for hooking and setting up variables.
+	*/
+	virtual void RegisterInitFunction(initFunc initFunction);
 };

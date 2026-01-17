@@ -30,6 +30,7 @@ enum sandboxItemType
 	SANDBOXITEMTYPE_Item,
 	SANDBOXITEMTYPE_Collab,
 	SANDBOXITEMTYPE_Stamp,
+	SANDBOXITEMTYPE_Perk,
 };
 
 struct sandboxShopItemData
@@ -146,6 +147,17 @@ std::vector<sandboxMenuData*> sandboxOptionList = {
 	new sandboxButton(10, 300, createAnvil, "Create Anvil"),
 };
 
+bool isLevelUpButtonPressed = false;
+bool hasLevelUp = false;
+
+void PlayerManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasLevelUp)
+	{
+		hasLevelUp = false;
+	}
+}
+
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	CInstance* Self = std::get<0>(Args);
@@ -175,6 +187,26 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			curDamageData.damageQueue.pop_front();
 		}
 		curDamageData.curFrameDamage = 0;
+	}
+
+	if (isKeyPressed('U'))
+	{
+		if (!isLevelUpButtonPressed)
+		{
+			// Check how the room_goto code works
+			isLevelUpButtonPressed = true;
+			hasLevelUp = true;
+			RValue playerlevel = g_ModuleInterface->CallBuiltin("variable_global_get", { "PLAYERLEVEL" });
+			RValue levelrate = g_ModuleInterface->CallBuiltin("variable_instance_get", { Self, "lvlrate1" });
+			RValue lvlexponent = g_ModuleInterface->CallBuiltin("variable_instance_get", { Self, "lvlexponent" });
+			RValue power = g_ModuleInterface->CallBuiltin("power", { (playerlevel.ToDouble() + 1) * levelrate.ToDouble(), lvlexponent });
+			RValue round = g_ModuleInterface->CallBuiltin("round", { power });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", round });
+		}
+	}
+	else
+	{
+		isLevelUpButtonPressed = false;
 	}
 
 	bool hasUpdatedTimePaused = false;
@@ -453,9 +485,33 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 			}
 			break;
 		}
+		case SANDBOXITEMTYPE_Perk:
+		{
+			if (buyOption == 0)
+			{
+				if (curItem.curLevel == curItem.maxLevel)
+				{
+					return;
+				}
+				RValue itemName = curItem.itemName.c_str();
+				RValue returnVal;
+				RValue** args = new RValue*[1];
+				args[0] = &itemName;
+				origAddPerkPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			}
+			else
+			{
+				RValue perksMap = getInstanceVariable(playerManagerInstance, GML_PERKS);
+				RValue perk = g_ModuleInterface->CallBuiltin("ds_map_find_value", { perksMap, curItem.itemName.c_str() });
+				setInstanceVariable(perk, GML_level, -1.0);
+				RValue perks = getInstanceVariable(playerManagerInstance, GML_perks);
+				g_ModuleInterface->CallBuiltin("struct_remove", { perks, curItem.itemName.c_str() });
+			}
+			break;
+		}
 		default:
 		{
-			g_ModuleInterface->Print(CM_RED, "ERROR: COULDN'T HANDLE SANDBOX ITEM INTERACT");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "ERROR: COULDN'T HANDLE SANDBOX ITEM INTERACT");
 		}
 	}
 }
@@ -598,6 +654,18 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			RValue optionIcon = getInstanceVariable(curSticker, GML_optionIcon);
 			int level = static_cast<int>(!g_ModuleInterface->CallBuiltin("array_contains", { availableStickers, curStickerName }).ToBoolean());
 			itemDataList.push_back(sandboxShopItemData(std::string(curStickerName.ToString()), static_cast<int>(lround(optionIcon.ToDouble())), level, 1, false, SANDBOXITEMTYPE_Stamp));
+		}
+
+		RValue PerksMap = getInstanceVariable(Self, GML_PERKS);
+		RValue PerksArr = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { PerksMap });
+		int PerksLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { PerksArr }).m_Real);
+		for (int i = 0; i < PerksLength; i++)
+		{
+			RValue curPerkName = PerksArr[i];
+			RValue curPerk = g_ModuleInterface->CallBuiltin("ds_map_find_value", { PerksMap, curPerkName });
+			RValue optionIcon = getInstanceVariable(curPerk, GML_optionIcon);
+			int curLevel = static_cast<int>(lround(getInstanceVariable(curPerk, GML_level).m_Real)) + 1;
+			itemDataList.push_back(sandboxShopItemData(curPerkName.ToString(), static_cast<int>(lround(optionIcon.ToDouble())), curLevel, 3, false, SANDBOXITEMTYPE_Perk));
 		}
 		
 		// Handle drawing sandbox item menu
