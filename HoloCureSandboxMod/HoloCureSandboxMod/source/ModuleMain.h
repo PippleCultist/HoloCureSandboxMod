@@ -3,7 +3,7 @@
 #include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.1.0"
+#define VERSION_NUM "v1.1.1"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
@@ -50,6 +50,21 @@
 	DO(SPD) \
 	DO(PERKS) \
 	DO(perks) \
+	DO(playerStatUps) \
+	DO(crit) \
+	DO(pickupRange) \
+	DO(haste) \
+	DO(playerCharacter) \
+	DO(buffs) \
+	DO(timer) \
+	DO(buffIcon) \
+	DO(Buffs) \
+	DO(ApplyBuff) \
+	DO(stacks) \
+	DO(maxStacks) \
+	DO(buffName) \
+	DO(reapply) \
+	DO(optionType) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames

@@ -1,6 +1,12 @@
+#pragma comment(lib, "d3d11.lib")
 #include "CommonFunctions.h"
 #include "CodeEvents.h"
 #include "ScriptFunctions.h"
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_dx11.h"
+#include "imgui/imgui_impl_win32.h"
+#include "imgui/imgui_stdlib.h"
+#include <d3d11.h>
 #include <thread>
 
 extern std::unordered_map<std::string, damageData> damagePerFrameMap;
@@ -22,7 +28,29 @@ int curSandboxMenuPage = 0;
 int selectedItemIndex = -1;
 int dpsNumFrameCount = 0;
 
+bool isEditorOpen = false;
+
+// Data
+static ID3D11Device* g_pd3dDevice = nullptr;
+static ID3D11DeviceContext* g_pd3dDeviceContext = nullptr;
+static IDXGISwapChain* g_pSwapChain = nullptr;
+static bool                     g_SwapChainOccluded = false;
+static UINT                     g_ResizeWidth = 0, g_ResizeHeight = 0;
+static ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
+
+bool CreateDeviceD3D(HWND hWnd);
+void CleanupDeviceD3D();
+void CreateRenderTarget();
+void CleanupRenderTarget();
+
+ImGuiIO io;
+
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
 std::vector<std::pair<double, std::string>> damageList;
+std::string editorCharacterData;
 
 enum sandboxItemType
 {
@@ -46,6 +74,8 @@ struct sandboxShopItemData
 	{
 	}
 };
+
+void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShopItemData& curItem, int buyOption);
 
 void drawTextOutline(CInstance* Self, double xPos, double yPos, std::string text, double outlineWidth, int outlineColor, double numOutline, double linePixelSeparation, double pixelsBeforeLineBreak, int textColor, double alpha)
 {
@@ -97,6 +127,41 @@ void createAnvil()
 	RValue sticker = g_ModuleInterface->CallBuiltin("instance_create_depth", { xPos, yPos.m_Real - 20, depth, objHoloAnvilIndex });
 }
 
+void openEditor()
+{
+	if (g_pd3dDevice == nullptr)
+	{
+		// Create application window
+		//ImGui_ImplWin32_EnableDpiAwareness();
+		WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Editor Menu", nullptr };
+		::RegisterClassExW(&wc);
+		HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Editor Menu", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 720, nullptr, nullptr, wc.hInstance, nullptr);
+		// Initialize Direct3D
+		if (!CreateDeviceD3D(hwnd))
+		{
+			CleanupDeviceD3D();
+			::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+			return;
+		}
+
+		// Show the window
+		::ShowWindow(hwnd, SW_SHOWDEFAULT);
+		::UpdateWindow(hwnd);
+
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		io = ImGui::GetIO();
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+		ImGui::StyleColorsDark();
+		// Setup Platform/Renderer backends
+		ImGui_ImplWin32_Init(hwnd);
+		ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+		isEditorOpen = true;
+	}
+}
+
 bool isKeyPressed(int vKey)
 {
 	return GetForegroundWindow() == hWnd && (GetAsyncKeyState(vKey) & 0xFFFE) != 0;
@@ -145,6 +210,7 @@ std::vector<sandboxMenuData*> sandboxOptionList = {
 	new sandboxButton(10, 230, setTimeToThirtyMin, "Go to 30:00"),
 	new sandboxButton(10, 265, setTimeToFortyMin, "Go to 40:00"),
 	new sandboxButton(10, 300, createAnvil, "Create Anvil"),
+	new sandboxButton(10, 335, openEditor, "Open Editor"),
 };
 
 bool isLevelUpButtonPressed = false;
@@ -156,6 +222,181 @@ void PlayerManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 	{
 		hasLevelUp = false;
 	}
+}
+
+void handleImGUI(CInstance* Self)
+{
+	ImGui::Begin("Editor - ");
+	ImGui::InputTextMultiline("character data", &editorCharacterData);
+	if (ImGui::Button("Export JSON"))
+	{
+		gameData curGameData;
+		RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
+		curGameData.time = ((timeArr[0].ToInt32() * 60 + timeArr[1].ToInt32()) * 60) + timeArr[2].ToInt32();
+		RValue statUps = getInstanceVariable(Self, GML_playerStatUps);
+		curGameData.statLevels.hp = getInstanceVariable(statUps, GML_HP).ToInt32();
+		curGameData.statLevels.atk = getInstanceVariable(statUps, GML_ATK).ToInt32();
+		curGameData.statLevels.spd = getInstanceVariable(statUps, GML_SPD).ToInt32();
+		curGameData.statLevels.crit = getInstanceVariable(statUps, GML_crit).ToInt32();
+		curGameData.statLevels.pickupRange = getInstanceVariable(statUps, GML_pickupRange).ToInt32();
+		curGameData.statLevels.haste = getInstanceVariable(statUps, GML_haste).ToInt32();
+		RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
+		RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
+		RValue buffNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { buffs });
+		int buffNamesLength = g_ModuleInterface->CallBuiltin("array_length", { buffNames }).ToInt32();
+		for (int i = 0; i < buffNamesLength; i++)
+		{
+			RValue curName = buffNames[i];
+			RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, curName });
+			RValue config = getInstanceVariable(curBuff, GML_config);
+			playerBuffData curBuffData;
+			curBuffData.buffName = curName.ToString();
+			RValue buffIcon = getInstanceVariable(config, GML_buffIcon);
+			if (buffIcon.m_Kind != VALUE_UNDEFINED)
+			{
+				curBuffData.buffIcon = buffIcon.ToInt32();
+			}
+			curBuffData.stacks = getInstanceVariable(config, GML_stacks).ToInt32();
+			curBuffData.maxStacks = getInstanceVariable(config, GML_maxStacks).ToInt32();
+			curBuffData.duration = getInstanceVariable(curBuff, GML_timer).ToInt32();
+			curGameData.buffDataList.push_back(curBuffData);
+		}
+
+		RValue itemMap = getInstanceVariable(Self, GML_ITEMS);
+		RValue items = getInstanceVariable(Self, GML_items);
+		RValue itemNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { items });
+		int itemNamesLength = g_ModuleInterface->CallBuiltin("array_length", { itemNames }).ToInt32();
+		for (int i = 0; i < itemNamesLength; i++)
+		{
+			RValue curName = itemNames[i];
+			RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemMap, curName });
+			RValue level = getInstanceVariable(curItem, GML_level);
+			RValue maxLevel = getInstanceVariable(curItem, GML_maxLevel);
+			RValue optionIconSuper = getInstanceVariable(curItem, GML_optionIcon_Super);
+			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && optionIconSuper.ToInt32() != sprBulletTempIndex;
+			curGameData.itemDataList.push_back(playerItemData(curName.ToString(), level.ToInt32(), maxLevel.ToInt32(), canSuper));
+		}
+
+		RValue attacks = getInstanceVariable(playerCharacter, GML_attacks);
+		RValue weapons = getInstanceVariable(Self, GML_weapons);
+		RValue attacksNames = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacks });
+		int attackNamesLength = g_ModuleInterface->CallBuiltin("array_length", { attacksNames }).ToInt32();
+		for (int i = 0; i < attackNamesLength; i++)
+		{
+			RValue curName = attacksNames[i];
+			RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_instance_get", { weapons, curName });
+			RValue level = getInstanceVariable(curWeapon, GML_level);
+			RValue maxLevel = getInstanceVariable(curWeapon, GML_maxLevel);
+			std::string optionType = getInstanceVariable(curWeapon, GML_optionType).ToString();
+			bool isCollab = optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0;
+			curGameData.weaponDataList.push_back(playerWeaponData(curName.ToString(), level.m_Kind == VALUE_UNDEFINED ? -1 : level.ToInt32(), maxLevel.m_Kind == VALUE_UNDEFINED ? -1 : maxLevel.ToInt32(), isCollab));
+		}
+		nlohmann::json outputJSON = curGameData;
+		editorCharacterData = outputJSON.dump(4);
+	}
+	if (ImGui::Button("Apply JSON"))
+	{
+		try
+		{
+			gameData curGameData;
+			nlohmann::json inputData = nlohmann::json::parse(editorCharacterData);
+			curGameData = inputData.template get<gameData>();
+			RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
+			int seconds = curGameData.time % 60;
+			curGameData.time /= 60;
+			int minutes = curGameData.time % 60;
+			curGameData.time /= 60;
+			int hours = curGameData.time;
+			timeArr[0] = hours;
+			timeArr[1] = minutes;
+			timeArr[2] = seconds;
+			timeArr[3] = 0;
+			RValue statUps = getInstanceVariable(Self, GML_playerStatUps);
+			setInstanceVariable(statUps, GML_HP, curGameData.statLevels.hp);
+			setInstanceVariable(statUps, GML_ATK, curGameData.statLevels.atk);
+			setInstanceVariable(statUps, GML_SPD, curGameData.statLevels.spd);
+			setInstanceVariable(statUps, GML_crit, curGameData.statLevels.crit);
+			setInstanceVariable(statUps, GML_pickupRange, curGameData.statLevels.pickupRange);
+			setInstanceVariable(statUps, GML_haste, curGameData.statLevels.haste);
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
+			for (int i = 0; i < curGameData.buffDataList.size(); i++)
+			{
+				playerBuffData buffData = curGameData.buffDataList[i];
+				RValue buffsMap = getInstanceVariable(attackController, GML_Buffs);
+				RValue buffsMapData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { buffsMap, buffData.buffName.c_str() });
+				RValue buffConfig;
+				g_RunnerInterface.StructCreate(&buffConfig);
+				setInstanceVariable(buffConfig, GML_reapply, true);
+				setInstanceVariable(buffConfig, GML_stacks, buffData.stacks);
+				setInstanceVariable(buffConfig, GML_maxStacks, buffData.maxStacks);
+				setInstanceVariable(buffConfig, GML_buffName, buffData.buffName.c_str());
+				setInstanceVariable(buffConfig, GML_buffIcon, getInstanceVariable(buffsMapData, GML_buffIcon));
+
+				RValue ApplyBuffMethod = getInstanceVariable(attackController, GML_ApplyBuff);
+				RValue ApplyBuffArr = g_ModuleInterface->CallBuiltin("array_create", { 4 });
+				ApplyBuffArr[0] = playerCharacter;
+				ApplyBuffArr[1] = buffData.buffName.c_str();
+				ApplyBuffArr[2] = buffsMapData;
+				ApplyBuffArr[3] = buffConfig;
+				g_ModuleInterface->CallBuiltin("method_call", { ApplyBuffMethod, ApplyBuffArr });
+				RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
+				RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
+				RValue config = getInstanceVariable(curBuff, GML_config);
+				setInstanceVariable(config, GML_stacks, buffData.stacks);
+			}
+
+			RValue items = getInstanceVariable(Self, GML_items);
+			RValue itemNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { items });
+			int itemNamesLength = g_ModuleInterface->CallBuiltin("array_length", { itemNames }).ToInt32();
+			for (int i = 0; i < itemNamesLength; i++)
+			{
+				RValue curName = itemNames[i];
+				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, SANDBOXITEMTYPE_Item);
+				handleSandboxItemMenuInteract(Self, itemData, 1);
+			}
+
+			RValue weapons = getInstanceVariable(playerCharacter, GML_attacks);
+			RValue weaponNames = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { weapons });
+			int weaponNamesLength = g_ModuleInterface->CallBuiltin("array_length", { weaponNames }).ToInt32();
+			for (int i = 0; i < weaponNamesLength; i++)
+			{
+				RValue curName = weaponNames[i];
+				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, SANDBOXITEMTYPE_Weapon);
+				handleSandboxItemMenuInteract(Self, itemData, 1);
+			}
+
+			for (int i = 0; i < curGameData.itemDataList.size(); i++)
+			{
+				playerItemData curItem = curGameData.itemDataList[i];
+				sandboxShopItemData itemData(curItem.itemName, -1, curItem.level, curItem.maxLevel, curItem.canSuper, SANDBOXITEMTYPE_Item);
+				handleSandboxItemMenuInteract(Self, itemData, 0);
+				RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
+				RValue newItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, curItem.itemName.c_str() });
+				setInstanceVariable(newItem, GML_level, curItem.level);
+			}
+
+			for (int i = 0; i < curGameData.weaponDataList.size(); i++)
+			{
+				playerWeaponData curItem = curGameData.weaponDataList[i];
+				sandboxShopItemData itemData(curItem.weaponName, -1, curItem.level, curItem.maxLevel, false, curItem.isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
+				handleSandboxItemMenuInteract(Self, itemData, 0);
+				weapons = getInstanceVariable(Self, GML_weapons);
+				RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_struct_get", { weapons, curItem.weaponName.c_str() });
+				setInstanceVariable(curWeapon, GML_level, curItem.level);
+			}
+
+			RValue UpdatePlayerMethod = getInstanceVariable(Self, GML_UpdatePlayer);
+			RValue UpdatePlayerMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
+			g_ModuleInterface->CallBuiltin("method_call", { UpdatePlayerMethod, UpdatePlayerMethodArr });
+		}
+		catch (nlohmann::json::parse_error& e)
+		{
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Parse Error: %s when parsing character data JSON", e.what());
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "Parse Error: %s when parsing character data JSON", e.what());
+		}
+	}
+	ImGui::End();
 }
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -297,6 +538,60 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 				origEndStopBaseMobCreateScript(objectInstance, objectInstance, result, 0, nullptr);
 			}
 		}
+	}
+
+	if (isEditorOpen)
+	{
+		// Poll and handle messages (inputs, window resize, etc.)
+		// See the WndProc() function below for our to dispatch events to the Win32 backend.
+		MSG msg;
+		while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
+		{
+			::TranslateMessage(&msg);
+			::DispatchMessage(&msg);
+			if (msg.message == WM_QUIT)
+			{
+				isEditorOpen = false;
+				g_pd3dDevice = nullptr;
+				return;
+			}
+		}
+
+		// Handle window being minimized or screen locked
+		if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
+		{
+			::Sleep(10);
+			return;
+		}
+		g_SwapChainOccluded = false;
+
+		// Handle window resize (we don't resize directly in the WM_SIZE handler)
+		if (g_ResizeWidth != 0 && g_ResizeHeight != 0)
+		{
+			CleanupRenderTarget();
+			g_pSwapChain->ResizeBuffers(0, g_ResizeWidth, g_ResizeHeight, DXGI_FORMAT_UNKNOWN, 0);
+			g_ResizeWidth = g_ResizeHeight = 0;
+			CreateRenderTarget();
+		}
+
+		// Start the Dear ImGui frame
+		ImGui_ImplDX11_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		handleImGUI(Self);
+
+		// Rendering
+		ImGui::Render();
+		const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
+		g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
+		g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+		// Present
+		HRESULT hr = g_pSwapChain->Present(1, 0);   // Present with vsync
+		//HRESULT hr = g_pSwapChain->Present(0, 0); // Present without vsync
+		g_SwapChainOccluded = (hr == DXGI_STATUS_OCCLUDED);
 	}
 }
 
@@ -944,4 +1239,246 @@ void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		text = std::format("SPD: {:.3e}", spd.ToDouble());
 		drawTextOutline(Self, xPos.ToDouble(), yPos.ToDouble() + 25, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
 	}
+}
+
+void parseJSONToVar(const nlohmann::json& inputJson, const char* varName, std::string& outputStr)
+{
+	try
+	{
+		inputJson.at(varName).get_to(outputStr);
+	}
+	catch (nlohmann::json::type_error& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Type Error: %s when parsing var %s to string", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Type Error: %s when parsing var %s to string", e.what(), varName);
+	}
+	catch (nlohmann::json::out_of_range& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Out of Range Error: %s when parsing var %s to string", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Out of Range Error: %s when parsing var %s to string", e.what(), varName);
+	}
+}
+
+void parseJSONToVar(const nlohmann::json& inputJson, const char* varName, int& outputInt)
+{
+	try
+	{
+		inputJson.at(varName).get_to(outputInt);
+	}
+	catch (nlohmann::json::type_error& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Type Error: %s when parsing var %s to int", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Type Error: %s when parsing var %s to int", e.what(), varName);
+	}
+	catch (nlohmann::json::out_of_range& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Out of Range Error: %s when parsing var %s to int", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Out of Range Error: %s when parsing var %s to int", e.what(), varName);
+	}
+}
+
+void parseJSONToVar(const nlohmann::json& inputJson, const char* varName, bool& outputBoolean)
+{
+	try
+	{
+		inputJson.at(varName).get_to(outputBoolean);
+	}
+	catch (nlohmann::json::type_error& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Type Error: %s when parsing var %s to boolean", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Type Error: %s when parsing var %s to boolean", e.what(), varName);
+	}
+	catch (nlohmann::json::out_of_range& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Out of Range Error: %s when parsing var %s to boolean", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Out of Range Error: %s when parsing var %s to boolean", e.what(), varName);
+	}
+}
+
+void to_json(nlohmann::json& outputJson, const gameData& inputGameData)
+{
+	outputJson = nlohmann::json{
+		{ "time", inputGameData.time },
+		{ "statLevels", inputGameData.statLevels },
+		{ "buffData", inputGameData.buffDataList },
+		{ "weaponData", inputGameData.weaponDataList },
+		{ "itemData", inputGameData.itemDataList },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, gameData& outputGameData)
+{
+	parseJSONToVar(inputJson, "time", outputGameData.time);
+	from_json(inputJson["statLevels"], outputGameData.statLevels);
+	from_json(inputJson["buffData"], outputGameData.buffDataList);
+	from_json(inputJson["weaponData"], outputGameData.weaponDataList);
+	from_json(inputJson["itemData"], outputGameData.itemDataList);
+}
+
+void to_json(nlohmann::json& outputJson, const playerStatLevels& inputStatLevels)
+{
+	outputJson = nlohmann::json{
+		{ "hp", inputStatLevels.hp },
+		{ "atk", inputStatLevels.atk },
+		{ "spd", inputStatLevels.spd },
+		{ "crit", inputStatLevels.crit },
+		{ "pickupRange", inputStatLevels.pickupRange },
+		{ "haste", inputStatLevels.haste },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, playerStatLevels& outputStatLevels)
+{
+	parseJSONToVar(inputJson, "hp", outputStatLevels.hp);
+	parseJSONToVar(inputJson, "atk", outputStatLevels.atk);
+	parseJSONToVar(inputJson, "spd", outputStatLevels.spd);
+	parseJSONToVar(inputJson, "crit", outputStatLevels.crit);
+	parseJSONToVar(inputJson, "pickupRange", outputStatLevels.pickupRange);
+	parseJSONToVar(inputJson, "haste", outputStatLevels.haste);
+}
+
+void to_json(nlohmann::json& outputJson, const playerBuffData& inputBuffData)
+{
+	outputJson = nlohmann::json{
+		{ "name", inputBuffData.buffName },
+		{ "duration", inputBuffData.duration },
+		{ "stacks", inputBuffData.stacks },
+		{ "maxStacks", inputBuffData.maxStacks },
+		{ "icon", inputBuffData.buffIcon },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, playerBuffData& outputBuffData)
+{
+	parseJSONToVar(inputJson, "name", outputBuffData.buffName);
+	parseJSONToVar(inputJson, "duration", outputBuffData.duration);
+	parseJSONToVar(inputJson, "stacks", outputBuffData.stacks);
+	parseJSONToVar(inputJson, "maxStacks", outputBuffData.maxStacks);
+	parseJSONToVar(inputJson, "icon", outputBuffData.buffIcon);
+}
+
+void to_json(nlohmann::json& outputJson, const playerWeaponData& inputWeaponData)
+{
+	outputJson = nlohmann::json{
+		{ "name", inputWeaponData.weaponName },
+		{ "level", inputWeaponData.level },
+		{ "maxLevel", inputWeaponData.maxLevel },
+		{ "isCollab", inputWeaponData.isCollab },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, playerWeaponData& outputWeaponData)
+{
+	parseJSONToVar(inputJson, "name", outputWeaponData.weaponName);
+	parseJSONToVar(inputJson, "level", outputWeaponData.level);
+	parseJSONToVar(inputJson, "maxLevel", outputWeaponData.maxLevel);
+	parseJSONToVar(inputJson, "isCollab", outputWeaponData.isCollab);
+}
+
+void to_json(nlohmann::json& outputJson, const playerItemData& inputItemData)
+{
+	outputJson = nlohmann::json{
+		{ "name", inputItemData.itemName },
+		{ "level", inputItemData.level },
+		{ "maxLevel", inputItemData.maxLevel },
+		{ "canSuper", inputItemData.canSuper },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, playerItemData& outputItemData)
+{
+	parseJSONToVar(inputJson, "name", outputItemData.itemName);
+	parseJSONToVar(inputJson, "level", outputItemData.level);
+	parseJSONToVar(inputJson, "maxLevel", outputItemData.maxLevel);
+	parseJSONToVar(inputJson, "canSuper", outputItemData.canSuper);
+}
+
+// Helper functions
+
+bool CreateDeviceD3D(HWND hWnd)
+{
+	// Setup swap chain
+	DXGI_SWAP_CHAIN_DESC sd;
+	ZeroMemory(&sd, sizeof(sd));
+	sd.BufferCount = 2;
+	sd.BufferDesc.Width = 0;
+	sd.BufferDesc.Height = 0;
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	sd.BufferDesc.RefreshRate.Numerator = 60;
+	sd.BufferDesc.RefreshRate.Denominator = 1;
+	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.OutputWindow = hWnd;
+	sd.SampleDesc.Count = 1;
+	sd.SampleDesc.Quality = 0;
+	sd.Windowed = TRUE;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+
+	UINT createDeviceFlags = 0;
+	//createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	D3D_FEATURE_LEVEL featureLevel;
+	const D3D_FEATURE_LEVEL featureLevelArray[2] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0, };
+	HRESULT res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
+	if (res == DXGI_ERROR_UNSUPPORTED) // Try high-performance WARP software driver if hardware is not available.
+		res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
+	if (res != S_OK)
+		return false;
+
+	CreateRenderTarget();
+	return true;
+}
+
+void CleanupDeviceD3D()
+{
+	CleanupRenderTarget();
+	if (g_pSwapChain) { g_pSwapChain->Release(); g_pSwapChain = nullptr; }
+	if (g_pd3dDeviceContext) { g_pd3dDeviceContext->Release(); g_pd3dDeviceContext = nullptr; }
+	if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
+}
+
+void CreateRenderTarget()
+{
+	ID3D11Texture2D* pBackBuffer;
+	g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
+	g_pd3dDevice->CreateRenderTargetView(pBackBuffer, nullptr, &g_mainRenderTargetView);
+	pBackBuffer->Release();
+}
+
+void CleanupRenderTarget()
+{
+	if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
+}
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// Win32 message handler
+// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+		return true;
+
+	switch (msg)
+	{
+	case WM_SIZE:
+		if (wParam == SIZE_MINIMIZED)
+			return 0;
+		g_ResizeWidth = (UINT)LOWORD(lParam); // Queue resize
+		g_ResizeHeight = (UINT)HIWORD(lParam);
+		return 0;
+	case WM_SYSCOMMAND:
+		if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+			return 0;
+		break;
+	case WM_DESTROY:
+		::DestroyWindow(hWnd);
+		isEditorOpen = false;
+		g_pd3dDevice = nullptr;
+		return 0;
+	}
+	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
