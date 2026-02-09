@@ -251,13 +251,16 @@ void handleImGUI(CInstance* Self)
 			RValue config = getInstanceVariable(curBuff, GML_config);
 			playerBuffData curBuffData;
 			curBuffData.buffName = curName.ToString();
-			RValue buffIcon = getInstanceVariable(config, GML_buffIcon);
-			if (buffIcon.m_Kind != VALUE_UNDEFINED)
+			RValue stacks = getInstanceVariable(config, GML_stacks);
+			if (stacks.m_Kind != VALUE_UNDEFINED)
 			{
-				curBuffData.buffIcon = buffIcon.ToInt32();
+				curBuffData.stacks = stacks.ToInt32();
 			}
-			curBuffData.stacks = getInstanceVariable(config, GML_stacks).ToInt32();
-			curBuffData.maxStacks = getInstanceVariable(config, GML_maxStacks).ToInt32();
+			RValue maxStacks = getInstanceVariable(config, GML_maxStacks);
+			if (maxStacks.m_Kind != VALUE_UNDEFINED)
+			{
+				curBuffData.maxStacks = maxStacks.ToInt32();
+			}
 			curBuffData.duration = getInstanceVariable(curBuff, GML_timer).ToInt32();
 			curGameData.buffDataList.push_back(curBuffData);
 		}
@@ -333,6 +336,12 @@ void handleImGUI(CInstance* Self)
 				setInstanceVariable(buffConfig, GML_buffName, buffData.buffName.c_str());
 				setInstanceVariable(buffConfig, GML_buffIcon, getInstanceVariable(buffsMapData, GML_buffIcon));
 
+				RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
+				RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
+				RValue config = getInstanceVariable(curBuff, GML_config);
+				setInstanceVariable(config, GML_stacks, buffData.stacks);
+				setInstanceVariable(config, GML_maxStacks, buffData.maxStacks);
+
 				RValue ApplyBuffMethod = getInstanceVariable(attackController, GML_ApplyBuff);
 				RValue ApplyBuffArr = g_ModuleInterface->CallBuiltin("array_create", { 4 });
 				ApplyBuffArr[0] = playerCharacter;
@@ -340,9 +349,7 @@ void handleImGUI(CInstance* Self)
 				ApplyBuffArr[2] = buffsMapData;
 				ApplyBuffArr[3] = buffConfig;
 				g_ModuleInterface->CallBuiltin("method_call", { ApplyBuffMethod, ApplyBuffArr });
-				RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
-				RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
-				RValue config = getInstanceVariable(curBuff, GML_config);
+				
 				setInstanceVariable(config, GML_stacks, buffData.stacks);
 			}
 
@@ -1344,7 +1351,6 @@ void to_json(nlohmann::json& outputJson, const playerBuffData& inputBuffData)
 		{ "duration", inputBuffData.duration },
 		{ "stacks", inputBuffData.stacks },
 		{ "maxStacks", inputBuffData.maxStacks },
-		{ "icon", inputBuffData.buffIcon },
 	};
 }
 
@@ -1354,7 +1360,6 @@ void from_json(const nlohmann::json& inputJson, playerBuffData& outputBuffData)
 	parseJSONToVar(inputJson, "duration", outputBuffData.duration);
 	parseJSONToVar(inputJson, "stacks", outputBuffData.stacks);
 	parseJSONToVar(inputJson, "maxStacks", outputBuffData.maxStacks);
-	parseJSONToVar(inputJson, "icon", outputBuffData.buffIcon);
 }
 
 void to_json(nlohmann::json& outputJson, const playerWeaponData& inputWeaponData)

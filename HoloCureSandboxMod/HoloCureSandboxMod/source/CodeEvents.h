@@ -68,9 +68,8 @@ struct playerBuffData
 {
 	std::string buffName;
 	int duration;
-	int stacks;
-	int maxStacks;
-	int buffIcon = -1;
+	int stacks = -1;
+	int maxStacks = -1;
 };
 
 struct playerItemData
