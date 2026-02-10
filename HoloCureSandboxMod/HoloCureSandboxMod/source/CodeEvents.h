@@ -70,6 +70,7 @@ struct playerBuffData
 	int duration;
 	int stacks = -1;
 	int maxStacks = -1;
+	int buffIcon = -1;
 };
 
 struct playerItemData

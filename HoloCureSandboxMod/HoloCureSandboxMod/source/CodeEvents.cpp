@@ -261,6 +261,11 @@ void handleImGUI(CInstance* Self)
 			{
 				curBuffData.maxStacks = maxStacks.ToInt32();
 			}
+			RValue buffIcon = getInstanceVariable(config, GML_buffIcon);
+			if (buffIcon.m_Kind != VALUE_UNDEFINED)
+			{
+				curBuffData.buffIcon = buffIcon.ToInt32();
+			}
 			curBuffData.duration = getInstanceVariable(curBuff, GML_timer).ToInt32();
 			curGameData.buffDataList.push_back(curBuffData);
 		}
@@ -303,6 +308,7 @@ void handleImGUI(CInstance* Self)
 		{
 			gameData curGameData;
 			nlohmann::json inputData = nlohmann::json::parse(editorCharacterData);
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "Applying json: %s", editorCharacterData.c_str());
 			curGameData = inputData.template get<gameData>();
 			RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
 			int seconds = curGameData.time % 60;
@@ -334,13 +340,16 @@ void handleImGUI(CInstance* Self)
 				setInstanceVariable(buffConfig, GML_stacks, buffData.stacks);
 				setInstanceVariable(buffConfig, GML_maxStacks, buffData.maxStacks);
 				setInstanceVariable(buffConfig, GML_buffName, buffData.buffName.c_str());
-				setInstanceVariable(buffConfig, GML_buffIcon, getInstanceVariable(buffsMapData, GML_buffIcon));
+				setInstanceVariable(buffConfig, GML_buffIcon, buffData.buffIcon);
 
 				RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
 				RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
-				RValue config = getInstanceVariable(curBuff, GML_config);
-				setInstanceVariable(config, GML_stacks, buffData.stacks);
-				setInstanceVariable(config, GML_maxStacks, buffData.maxStacks);
+				if (curBuff.m_Kind != VALUE_UNDEFINED)
+				{
+					RValue config = getInstanceVariable(curBuff, GML_config);
+					setInstanceVariable(config, GML_stacks, buffData.stacks);
+					setInstanceVariable(config, GML_maxStacks, buffData.maxStacks);
+				}
 
 				RValue ApplyBuffMethod = getInstanceVariable(attackController, GML_ApplyBuff);
 				RValue ApplyBuffArr = g_ModuleInterface->CallBuiltin("array_create", { 4 });
@@ -350,6 +359,8 @@ void handleImGUI(CInstance* Self)
 				ApplyBuffArr[3] = buffConfig;
 				g_ModuleInterface->CallBuiltin("method_call", { ApplyBuffMethod, ApplyBuffArr });
 				
+				curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
+				RValue config = getInstanceVariable(curBuff, GML_config);
 				setInstanceVariable(config, GML_stacks, buffData.stacks);
 			}
 
@@ -369,7 +380,10 @@ void handleImGUI(CInstance* Self)
 			for (int i = 0; i < weaponNamesLength; i++)
 			{
 				RValue curName = weaponNames[i];
-				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, SANDBOXITEMTYPE_Weapon);
+				RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { weapons, curName });
+				RValue config = getInstanceVariable(curWeapon, GML_config);
+				std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
+				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0 ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
 				handleSandboxItemMenuInteract(Self, itemData, 1);
 			}
 
@@ -377,20 +391,29 @@ void handleImGUI(CInstance* Self)
 			{
 				playerItemData curItem = curGameData.itemDataList[i];
 				sandboxShopItemData itemData(curItem.itemName, -1, curItem.level, curItem.maxLevel, curItem.canSuper, SANDBOXITEMTYPE_Item);
-				handleSandboxItemMenuInteract(Self, itemData, 0);
-				RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
-				RValue newItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, curItem.itemName.c_str() });
-				setInstanceVariable(newItem, GML_level, curItem.level);
+				if (curItem.canSuper && curItem.level == curItem.maxLevel - 1)
+				{
+					handleSandboxItemMenuInteract(Self, itemData, 0);
+				}
+				else
+				{
+					for (int j = 0; j <= curItem.level; j++)
+					{
+						itemData.curLevel = j;
+						handleSandboxItemMenuInteract(Self, itemData, 0);
+					}
+				}
 			}
 
 			for (int i = 0; i < curGameData.weaponDataList.size(); i++)
 			{
 				playerWeaponData curItem = curGameData.weaponDataList[i];
-				sandboxShopItemData itemData(curItem.weaponName, -1, curItem.level, curItem.maxLevel, false, curItem.isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
-				handleSandboxItemMenuInteract(Self, itemData, 0);
-				weapons = getInstanceVariable(Self, GML_weapons);
-				RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_struct_get", { weapons, curItem.weaponName.c_str() });
-				setInstanceVariable(curWeapon, GML_level, curItem.level);
+				sandboxShopItemData itemData(curItem.weaponName, -1, 0, curItem.maxLevel, false, curItem.isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
+				for (int j = 0; j < curItem.level; j++)
+				{
+					itemData.curLevel = j;
+					handleSandboxItemMenuInteract(Self, itemData, 0);
+				}
 			}
 
 			RValue UpdatePlayerMethod = getInstanceVariable(Self, GML_UpdatePlayer);
@@ -1351,6 +1374,7 @@ void to_json(nlohmann::json& outputJson, const playerBuffData& inputBuffData)
 		{ "duration", inputBuffData.duration },
 		{ "stacks", inputBuffData.stacks },
 		{ "maxStacks", inputBuffData.maxStacks },
+		{ "buffIcon", inputBuffData.buffIcon },
 	};
 }
 
@@ -1360,6 +1384,7 @@ void from_json(const nlohmann::json& inputJson, playerBuffData& outputBuffData)
 	parseJSONToVar(inputJson, "duration", outputBuffData.duration);
 	parseJSONToVar(inputJson, "stacks", outputBuffData.stacks);
 	parseJSONToVar(inputJson, "maxStacks", outputBuffData.maxStacks);
+	parseJSONToVar(inputJson, "buffIcon", outputBuffData.buffIcon);
 }
 
 void to_json(nlohmann::json& outputJson, const playerWeaponData& inputWeaponData)
