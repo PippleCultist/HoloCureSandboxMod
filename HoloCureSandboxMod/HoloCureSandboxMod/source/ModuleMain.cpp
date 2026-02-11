@@ -27,6 +27,7 @@ PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origEndStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origDrawTextOutlineScript = nullptr;
+PFUNC_YYGMLScript origAddEnchantPlayerManagerOtherScript = nullptr;
 HWND hWnd;
 
 CInstance* globalInstance = nullptr;
@@ -164,6 +165,11 @@ void initHooks()
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_draw_text_outline", nullptr, nullptr, &origDrawTextOutlineScript)))
 	{
 		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_draw_text_outline");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddEnchant@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddEnchantPlayerManagerOtherScript)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_AddEnchant@gml_Object_obj_PlayerManager_Other_24");
 		return;
 	}
 

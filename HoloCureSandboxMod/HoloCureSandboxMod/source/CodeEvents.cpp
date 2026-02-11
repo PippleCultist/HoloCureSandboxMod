@@ -224,6 +224,16 @@ void PlayerManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 	}
 }
 
+void addEnchant(CInstance* playerManagerInstance, std::string weaponName, RValue& enchantArr)
+{
+	RValue weapon = weaponName.c_str();
+	RValue returnVal;
+	RValue** args = new RValue*[2];
+	args[0] = &weapon;
+	args[1] = &enchantArr;
+	origAddEnchantPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 2, args);
+}
+
 void handleImGUI(CInstance* Self)
 {
 	ImGui::Begin("Editor - ");
@@ -295,9 +305,17 @@ void handleImGUI(CInstance* Self)
 			RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_instance_get", { weapons, curName });
 			RValue level = getInstanceVariable(curWeapon, GML_level);
 			RValue maxLevel = getInstanceVariable(curWeapon, GML_maxLevel);
-			std::string optionType = getInstanceVariable(curWeapon, GML_optionType).ToString();
-			bool isCollab = optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0;
-			curGameData.weaponDataList.push_back(playerWeaponData(curName.ToString(), level.m_Kind == VALUE_UNDEFINED ? -1 : level.ToInt32(), maxLevel.m_Kind == VALUE_UNDEFINED ? -1 : maxLevel.ToInt32(), isCollab));
+			RValue curAttack = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curName });
+			RValue config = getInstanceVariable(curAttack, GML_config);
+			int enhancements = getInstanceVariable(config, GML_enhancements).ToInt32();
+			RValue gainedMods = getInstanceVariable(config, GML_gainedMods);
+			auto weaponData = playerWeaponData(curName.ToString(), level.m_Kind == VALUE_UNDEFINED ? -1 : level.ToInt32(), maxLevel.m_Kind == VALUE_UNDEFINED ? -1 : maxLevel.ToInt32(), enhancements);
+			int gainedModsLength = g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).ToInt32();
+			for (int j = 0; j < gainedModsLength; j++)
+			{
+				weaponData.enchantList.push_back(gainedMods[j].ToString());
+			}
+			curGameData.weaponDataList.push_back(weaponData);
 		}
 		nlohmann::json outputJSON = curGameData;
 		editorCharacterData = outputJSON.dump(4);
@@ -329,6 +347,77 @@ void handleImGUI(CInstance* Self)
 			setInstanceVariable(statUps, GML_haste, curGameData.statLevels.haste);
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
+
+			RValue items = getInstanceVariable(Self, GML_items);
+			RValue itemNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { items });
+			int itemNamesLength = g_ModuleInterface->CallBuiltin("array_length", { itemNames }).ToInt32();
+			for (int i = 0; i < itemNamesLength; i++)
+			{
+				RValue curName = itemNames[i];
+				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, SANDBOXITEMTYPE_Item);
+				handleSandboxItemMenuInteract(Self, itemData, 1);
+			}
+
+			RValue weapons = getInstanceVariable(playerCharacter, GML_attacks);
+			RValue weaponNames = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { weapons });
+			int weaponNamesLength = g_ModuleInterface->CallBuiltin("array_length", { weaponNames }).ToInt32();
+			for (int i = 0; i < weaponNamesLength; i++)
+			{
+				RValue curName = weaponNames[i];
+				RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { weapons, curName });
+				RValue config = getInstanceVariable(curWeapon, GML_config);
+				std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
+				bool isCollab = optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0;
+				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
+				handleSandboxItemMenuInteract(Self, itemData, 1);
+			}
+
+			for (int i = 0; i < curGameData.itemDataList.size(); i++)
+			{
+				playerItemData curItem = curGameData.itemDataList[i];
+				sandboxShopItemData itemData(curItem.itemName, -1, curItem.level - 1, curItem.maxLevel, curItem.canSuper, SANDBOXITEMTYPE_Item);
+				if (curItem.canSuper && curItem.level == curItem.maxLevel)
+				{
+					handleSandboxItemMenuInteract(Self, itemData, 0);
+				}
+				else
+				{
+					for (int j = 0; j <= curItem.level; j++)
+					{
+						itemData.curLevel = j - 1;
+						handleSandboxItemMenuInteract(Self, itemData, 0);
+					}
+				}
+			}
+
+			RValue attackIndexMap = getInstanceVariable(attackController, GML_attackIndex);
+
+			for (int i = 0; i < curGameData.weaponDataList.size(); i++)
+			{
+				playerWeaponData curItem = curGameData.weaponDataList[i];
+				
+				RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndexMap, curItem.weaponName.c_str() });
+				RValue config = getInstanceVariable(curWeapon, GML_config);
+				std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
+				bool isCollab = optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0;
+				sandboxShopItemData itemData(curItem.weaponName, -1, 0, curItem.maxLevel, false, isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
+				for (int j = 0; j < curItem.level; j++)
+				{
+					itemData.curLevel = j;
+					handleSandboxItemMenuInteract(Self, itemData, 0);
+				}
+				RValue curAttack = g_ModuleInterface->CallBuiltin("ds_map_find_value", { weapons, curItem.weaponName.c_str() });
+				RValue attackConfig = getInstanceVariable(curAttack, GML_config);
+				setInstanceVariable(attackConfig, GML_enhancements, curItem.enhancements);
+
+				RValue enchantArr = g_ModuleInterface->CallBuiltin("array_create", { curItem.enchantList.size() });
+				for (int j = 0; j < curItem.enchantList.size(); j++)
+				{
+					enchantArr[j] = curItem.enchantList[j].c_str();
+				}
+				addEnchant(Self, curItem.weaponName, enchantArr);
+			}
+
 			for (int i = 0; i < curGameData.buffDataList.size(); i++)
 			{
 				playerBuffData buffData = curGameData.buffDataList[i];
@@ -358,62 +447,10 @@ void handleImGUI(CInstance* Self)
 				ApplyBuffArr[2] = buffsMapData;
 				ApplyBuffArr[3] = buffConfig;
 				g_ModuleInterface->CallBuiltin("method_call", { ApplyBuffMethod, ApplyBuffArr });
-				
+
 				curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
 				RValue config = getInstanceVariable(curBuff, GML_config);
 				setInstanceVariable(config, GML_stacks, buffData.stacks);
-			}
-
-			RValue items = getInstanceVariable(Self, GML_items);
-			RValue itemNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { items });
-			int itemNamesLength = g_ModuleInterface->CallBuiltin("array_length", { itemNames }).ToInt32();
-			for (int i = 0; i < itemNamesLength; i++)
-			{
-				RValue curName = itemNames[i];
-				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, SANDBOXITEMTYPE_Item);
-				handleSandboxItemMenuInteract(Self, itemData, 1);
-			}
-
-			RValue weapons = getInstanceVariable(playerCharacter, GML_attacks);
-			RValue weaponNames = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { weapons });
-			int weaponNamesLength = g_ModuleInterface->CallBuiltin("array_length", { weaponNames }).ToInt32();
-			for (int i = 0; i < weaponNamesLength; i++)
-			{
-				RValue curName = weaponNames[i];
-				RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { weapons, curName });
-				RValue config = getInstanceVariable(curWeapon, GML_config);
-				std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
-				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0 ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
-				handleSandboxItemMenuInteract(Self, itemData, 1);
-			}
-
-			for (int i = 0; i < curGameData.itemDataList.size(); i++)
-			{
-				playerItemData curItem = curGameData.itemDataList[i];
-				sandboxShopItemData itemData(curItem.itemName, -1, curItem.level, curItem.maxLevel, curItem.canSuper, SANDBOXITEMTYPE_Item);
-				if (curItem.canSuper && curItem.level == curItem.maxLevel - 1)
-				{
-					handleSandboxItemMenuInteract(Self, itemData, 0);
-				}
-				else
-				{
-					for (int j = 0; j <= curItem.level; j++)
-					{
-						itemData.curLevel = j;
-						handleSandboxItemMenuInteract(Self, itemData, 0);
-					}
-				}
-			}
-
-			for (int i = 0; i < curGameData.weaponDataList.size(); i++)
-			{
-				playerWeaponData curItem = curGameData.weaponDataList[i];
-				sandboxShopItemData itemData(curItem.weaponName, -1, 0, curItem.maxLevel, false, curItem.isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
-				for (int j = 0; j < curItem.level; j++)
-				{
-					itemData.curLevel = j;
-					handleSandboxItemMenuInteract(Self, itemData, 0);
-				}
 			}
 
 			RValue UpdatePlayerMethod = getInstanceVariable(Self, GML_UpdatePlayer);
@@ -1325,6 +1362,24 @@ void parseJSONToVar(const nlohmann::json& inputJson, const char* varName, bool& 
 	}
 }
 
+void parseJSONToVar(const nlohmann::json& inputJson, const char* varName, std::vector<std::string>& outputStrList)
+{
+	try
+	{
+		inputJson.at(varName).get_to(outputStrList);
+	}
+	catch (nlohmann::json::type_error& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Type Error: %s when parsing var %s to string list", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Type Error: %s when parsing var %s to string list", e.what(), varName);
+	}
+	catch (nlohmann::json::out_of_range& e)
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Out of Range Error: %s when parsing var %s to string list", e.what(), varName);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Out of Range Error: %s when parsing var %s to string list", e.what(), varName);
+	}
+}
+
 void to_json(nlohmann::json& outputJson, const gameData& inputGameData)
 {
 	outputJson = nlohmann::json{
@@ -1393,7 +1448,8 @@ void to_json(nlohmann::json& outputJson, const playerWeaponData& inputWeaponData
 		{ "name", inputWeaponData.weaponName },
 		{ "level", inputWeaponData.level },
 		{ "maxLevel", inputWeaponData.maxLevel },
-		{ "isCollab", inputWeaponData.isCollab },
+		{ "enhancements", inputWeaponData.enhancements },
+		{ "enchantList", inputWeaponData.enchantList },
 	};
 }
 
@@ -1402,7 +1458,8 @@ void from_json(const nlohmann::json& inputJson, playerWeaponData& outputWeaponDa
 	parseJSONToVar(inputJson, "name", outputWeaponData.weaponName);
 	parseJSONToVar(inputJson, "level", outputWeaponData.level);
 	parseJSONToVar(inputJson, "maxLevel", outputWeaponData.maxLevel);
-	parseJSONToVar(inputJson, "isCollab", outputWeaponData.isCollab);
+	parseJSONToVar(inputJson, "enhancements", outputWeaponData.enhancements);
+	parseJSONToVar(inputJson, "enchantList", outputWeaponData.enchantList);
 }
 
 void to_json(nlohmann::json& outputJson, const playerItemData& inputItemData)

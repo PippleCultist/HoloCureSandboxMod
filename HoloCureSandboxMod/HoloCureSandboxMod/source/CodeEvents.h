@@ -93,12 +93,14 @@ struct playerWeaponData
 	std::string weaponName;
 	int level;
 	int maxLevel;
-	bool isCollab;
-	playerWeaponData() : level(-1), maxLevel(-1), isCollab(false)
+	int enhancements;
+	std::vector<std::string> enchantList;
+
+	playerWeaponData() : level(-1), maxLevel(-1), enhancements(0)
 	{
 	}
 
-	playerWeaponData(std::string weaponName, int level, int maxLevel, bool isCollab) : weaponName(weaponName), level(level), maxLevel(maxLevel), isCollab(isCollab)
+	playerWeaponData(std::string weaponName, int level, int maxLevel, int enhancements) : weaponName(weaponName), level(level), maxLevel(maxLevel), enhancements(enhancements)
 	{
 	}
 };
