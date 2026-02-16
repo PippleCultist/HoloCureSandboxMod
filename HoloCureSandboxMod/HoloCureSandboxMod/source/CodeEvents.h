@@ -46,6 +46,7 @@ struct sandboxButton : sandboxMenuData
 };
 
 void framePauseThreadHandler();
+void exportToJSON(CInstance* playerManagerInstance);
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
@@ -68,9 +69,7 @@ struct playerBuffData
 {
 	std::string buffName;
 	int duration;
-	int stacks = -1;
-	int maxStacks = -1;
-	int buffIcon = -1;
+	std::unordered_map<std::string, RValue> buffConfigMap;
 };
 
 struct playerItemData
@@ -105,12 +104,47 @@ struct playerWeaponData
 	}
 };
 
+struct playerStampData
+{
+	std::string stampName;
+	int level;
+
+	playerStampData(): level(-1)
+	{
+	}
+
+	playerStampData(std::string stampName, int level) : stampName(stampName), level(level)
+	{
+	}
+};
+
+struct playerSkillData
+{
+	std::string skillName;
+	int level;
+
+	playerSkillData() : level(-1)
+	{
+	}
+
+	playerSkillData(std::string skillName, int level) : skillName(skillName), level(level)
+	{
+	}
+};
+
 struct gameData
 {
 	int time;
+	int coins;
+	int level;
+	int score;
+	int enemyKills;
+	int miniBossKills;
+	int bossKills;
 	std::vector<playerItemData> itemDataList;
 	std::vector<playerWeaponData> weaponDataList;
-	// stamps
+	std::vector<playerStampData> stampDataList;
+	std::vector<playerSkillData> skillDataList;
 	playerStatLevels statLevels;
 	std::vector<playerBuffData> buffDataList;
 };
@@ -125,3 +159,12 @@ void to_json(nlohmann::json& outputJson, const playerWeaponData& inputWeaponData
 void from_json(const nlohmann::json& inputJson, playerWeaponData& outputWeaponData);
 void to_json(nlohmann::json& outputJson, const playerItemData& inputItemData);
 void from_json(const nlohmann::json& inputJson, playerItemData& outputItemData);
+void to_json(nlohmann::json& outputJson, const playerStampData& inputStampData);
+void from_json(const nlohmann::json& inputJson, playerStampData& outputStampData);
+void to_json(nlohmann::json& outputJson, const playerSkillData& inputSkillData);
+void from_json(const nlohmann::json& inputJson, playerSkillData& outputSkillData);
+namespace YYTK
+{
+	void to_json(nlohmann::json& outputJson, const RValue& inputRValue);
+	void from_json(const nlohmann::json& inputJson, RValue& outputRValue);
+}

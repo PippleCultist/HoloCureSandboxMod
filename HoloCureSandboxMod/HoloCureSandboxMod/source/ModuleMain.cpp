@@ -24,10 +24,12 @@ PFUNC_YYGMLScript origAddItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origRemoveOwnedItemPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddPerkPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origAddCollabPlayerManagerOtherScript = nullptr;
+PFUNC_YYGMLScript origAddSuperCollabPlayerManagerOtherScript = nullptr;
 PFUNC_YYGMLScript origCompleteStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origEndStopBaseMobCreateScript = nullptr;
 PFUNC_YYGMLScript origDrawTextOutlineScript = nullptr;
 PFUNC_YYGMLScript origAddEnchantPlayerManagerOtherScript = nullptr;
+PFUNC_YYGMLScript origCalculateScoreScript = nullptr;
 HWND hWnd;
 
 CInstance* globalInstance = nullptr;
@@ -137,6 +139,11 @@ void initHooks()
 		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_AddCollab@gml_Object_obj_PlayerManager_Other_24");
 		return;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddSuperCollab@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddSuperCollabPlayerManagerOtherScript)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_AddSuperCollab@gml_Object_obj_PlayerManager_Other_24");
+		return;
+	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CompleteStop@gml_Object_obj_BaseMob_Create_0", nullptr, nullptr, &origCompleteStopBaseMobCreateScript)))
 	{
 		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_CompleteStop@gml_Object_obj_BaseMob_Create_0");
@@ -170,6 +177,11 @@ void initHooks()
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddEnchant@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddEnchantPlayerManagerOtherScript)))
 	{
 		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_AddEnchant@gml_Object_obj_PlayerManager_Other_24");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CalculateScore", nullptr, nullptr, &origCalculateScoreScript)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_CalculateScore");
 		return;
 	}
 

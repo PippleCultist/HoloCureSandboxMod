@@ -8,6 +8,7 @@
 #include "imgui/imgui_stdlib.h"
 #include <d3d11.h>
 #include <thread>
+#include <fstream>
 
 extern std::unordered_map<std::string, damageData> damagePerFrameMap;
 extern CallbackManagerInterface* callbackManagerInterfacePtr;
@@ -57,6 +58,7 @@ enum sandboxItemType
 	SANDBOXITEMTYPE_Weapon,
 	SANDBOXITEMTYPE_Item,
 	SANDBOXITEMTYPE_Collab,
+	SANDBOXITEMTYPE_SuperCollab,
 	SANDBOXITEMTYPE_Stamp,
 	SANDBOXITEMTYPE_Perk,
 };
@@ -234,91 +236,164 @@ void addEnchant(CInstance* playerManagerInstance, std::string weaponName, RValue
 	origAddEnchantPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 2, args);
 }
 
+void exportToJSON(CInstance* playerManagerInstance)
+{
+	gameData curGameData;
+	RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
+	curGameData.time = ((timeArr[0].ToInt32() * 60 + timeArr[1].ToInt32()) * 60) + timeArr[2].ToInt32();
+	curGameData.coins = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).ToInt32();
+	RValue statUps = getInstanceVariable(playerManagerInstance, GML_playerStatUps);
+	curGameData.statLevels.hp = getInstanceVariable(statUps, GML_HP).ToInt32();
+	curGameData.statLevels.atk = getInstanceVariable(statUps, GML_ATK).ToInt32();
+	curGameData.statLevels.spd = getInstanceVariable(statUps, GML_SPD).ToInt32();
+	curGameData.statLevels.crit = getInstanceVariable(statUps, GML_crit).ToInt32();
+	curGameData.statLevels.pickupRange = getInstanceVariable(statUps, GML_pickupRange).ToInt32();
+	curGameData.statLevels.haste = getInstanceVariable(statUps, GML_haste).ToInt32();
+
+	curGameData.level = g_ModuleInterface->CallBuiltin("variable_global_get", { "PLAYERLEVEL" }).ToInt32();
+	{
+		RValue result;
+		origCalculateScoreScript(playerManagerInstance, playerManagerInstance, result, 0, nullptr);
+		curGameData.score = result.ToInt32();
+	}
+
+	curGameData.enemyKills = g_ModuleInterface->CallBuiltin("variable_global_get", { "enemyDefeated" }).ToInt32();
+	curGameData.miniBossKills = g_ModuleInterface->CallBuiltin("variable_global_get", { "miniBossDefeated" }).ToInt32();
+	curGameData.bossKills = g_ModuleInterface->CallBuiltin("variable_global_get", { "bossDefeated" }).ToInt32();
+
+	// TODO: Stamps
+
+	// Skills
+
+	{
+		RValue perks = getInstanceVariable(playerManagerInstance, GML_perks);
+		RValue perksNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { perks });
+		int perksNamesLength = g_ModuleInterface->CallBuiltin("array_length", { perksNames }).ToInt32();
+		for (int i = 0; i < perksNamesLength; i++)
+		{
+			std::string curName = perksNames[i].ToString();
+			RValue curPerk = g_ModuleInterface->CallBuiltin("variable_instance_get", { perks, curName.c_str() });
+			curGameData.skillDataList.push_back(playerSkillData(curName, getInstanceVariable(curPerk, GML_level).ToInt32()));
+		}
+	}
+
+	RValue playerCharacter = getInstanceVariable(playerManagerInstance, GML_playerCharacter);
+	RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
+	RValue buffNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { buffs });
+	int buffNamesLength = g_ModuleInterface->CallBuiltin("array_length", { buffNames }).ToInt32();
+	for (int i = 0; i < buffNamesLength; i++)
+	{
+		RValue curName = buffNames[i];
+		RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, curName });
+		RValue config = getInstanceVariable(curBuff, GML_config);
+		playerBuffData curBuffData;
+		RValue configNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { config });
+		int configNamesLength = g_ModuleInterface->CallBuiltin("array_length", { configNames }).ToInt32();
+		for (int j = 0; j < configNamesLength; j++)
+		{
+			RValue curConfigName = configNames[j];
+			curBuffData.buffConfigMap[curConfigName.ToString()] = g_ModuleInterface->CallBuiltin("variable_struct_get", { config, curConfigName });
+		}
+		curBuffData.buffName = curName.ToString();
+		curBuffData.duration = getInstanceVariable(curBuff, GML_timer).ToInt32();
+		curGameData.buffDataList.push_back(curBuffData);
+	}
+
+	RValue itemMap = getInstanceVariable(playerManagerInstance, GML_ITEMS);
+	RValue items = getInstanceVariable(playerManagerInstance, GML_items);
+	RValue itemNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { items });
+	int itemNamesLength = g_ModuleInterface->CallBuiltin("array_length", { itemNames }).ToInt32();
+	for (int i = 0; i < itemNamesLength; i++)
+	{
+		RValue curName = itemNames[i];
+		RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemMap, curName });
+		RValue level = getInstanceVariable(curItem, GML_level);
+		RValue maxLevel = getInstanceVariable(curItem, GML_maxLevel);
+		RValue optionIconSuper = getInstanceVariable(curItem, GML_optionIcon_Super);
+		bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && optionIconSuper.ToInt32() != sprBulletTempIndex;
+		curGameData.itemDataList.push_back(playerItemData(curName.ToString(), level.ToInt32(), maxLevel.ToInt32(), canSuper));
+	}
+
+	RValue attacks = getInstanceVariable(playerCharacter, GML_attacks);
+	RValue weapons = getInstanceVariable(playerManagerInstance, GML_weapons);
+	RValue attacksNames = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacks });
+	int attackNamesLength = g_ModuleInterface->CallBuiltin("array_length", { attacksNames }).ToInt32();
+	for (int i = 0; i < attackNamesLength; i++)
+	{
+		RValue curName = attacksNames[i];
+		RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_instance_get", { weapons, curName });
+		RValue level = getInstanceVariable(curWeapon, GML_level);
+		RValue maxLevel = getInstanceVariable(curWeapon, GML_maxLevel);
+		RValue curAttack = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curName });
+		RValue config = getInstanceVariable(curAttack, GML_config);
+		int enhancements = getInstanceVariable(config, GML_enhancements).ToInt32();
+		RValue gainedMods = getInstanceVariable(config, GML_gainedMods);
+		auto weaponData = playerWeaponData(curName.ToString(), level.m_Kind == VALUE_UNDEFINED ? -1 : level.ToInt32(), maxLevel.m_Kind == VALUE_UNDEFINED ? -1 : maxLevel.ToInt32(), enhancements);
+		int gainedModsLength = g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).ToInt32();
+		for (int j = 0; j < gainedModsLength; j++)
+		{
+			weaponData.enchantList.push_back(gainedMods[j].ToString());
+		}
+		curGameData.weaponDataList.push_back(weaponData);
+	}
+	nlohmann::json outputJSON = curGameData;
+	editorCharacterData = outputJSON.dump(4);
+	CreateDirectoryA("ModData", NULL);
+	CreateDirectoryA("ModData/SandboxMod", NULL);
+	std::ofstream outFile;
+	auto time = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+	outFile.open(std::format("ModData/SandboxMod/editor_{:%Y_%m_%d_%H_%M_%S}.json", time));
+	outFile << editorCharacterData << "\n";
+	outFile.close();
+}
+
+std::string curJSONFile;
+bool lastJSONFileMenuState = false;
+std::vector<std::string> jsonFileMenuList;
+
 void handleImGUI(CInstance* Self)
 {
 	ImGui::Begin("Editor - ");
+	if (ImGui::BeginCombo("Import JSON From File", curJSONFile.c_str()))
+	{
+		if (!lastJSONFileMenuState)
+		{
+			CreateDirectoryA("ModData", NULL);
+			CreateDirectoryA("ModData/SandboxMod", NULL);
+			jsonFileMenuList.clear();
+			for (const auto& dir : std::filesystem::directory_iterator("ModData/SandboxMod"))
+			{
+				auto path = dir.path();
+				if (path.extension().compare(".json") == 0)
+				{
+					jsonFileMenuList.push_back(path.filename().string());
+				}
+			}
+			lastJSONFileMenuState = true;
+		}
+		
+		for (auto& jsonFileName : jsonFileMenuList)
+		{
+			const bool is_selected = (jsonFileName.compare(curJSONFile) == 0);
+			if (ImGui::Selectable(jsonFileName.c_str(), is_selected))
+			{
+				curJSONFile = jsonFileName;
+				std::ifstream inFile;
+				inFile.open("ModData/SandboxMod/" + jsonFileName);
+				editorCharacterData = { std::istreambuf_iterator<char>(inFile), std::istreambuf_iterator<char>() };
+				inFile.close();
+			}
+		}
+		ImGui::EndCombo();
+	}
+	else
+	{
+		lastJSONFileMenuState = false;
+	}
 	ImGui::InputTextMultiline("character data", &editorCharacterData);
 	if (ImGui::Button("Export JSON"))
 	{
-		gameData curGameData;
-		RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
-		curGameData.time = ((timeArr[0].ToInt32() * 60 + timeArr[1].ToInt32()) * 60) + timeArr[2].ToInt32();
-		RValue statUps = getInstanceVariable(Self, GML_playerStatUps);
-		curGameData.statLevels.hp = getInstanceVariable(statUps, GML_HP).ToInt32();
-		curGameData.statLevels.atk = getInstanceVariable(statUps, GML_ATK).ToInt32();
-		curGameData.statLevels.spd = getInstanceVariable(statUps, GML_SPD).ToInt32();
-		curGameData.statLevels.crit = getInstanceVariable(statUps, GML_crit).ToInt32();
-		curGameData.statLevels.pickupRange = getInstanceVariable(statUps, GML_pickupRange).ToInt32();
-		curGameData.statLevels.haste = getInstanceVariable(statUps, GML_haste).ToInt32();
-		RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
-		RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
-		RValue buffNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { buffs });
-		int buffNamesLength = g_ModuleInterface->CallBuiltin("array_length", { buffNames }).ToInt32();
-		for (int i = 0; i < buffNamesLength; i++)
-		{
-			RValue curName = buffNames[i];
-			RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, curName });
-			RValue config = getInstanceVariable(curBuff, GML_config);
-			playerBuffData curBuffData;
-			curBuffData.buffName = curName.ToString();
-			RValue stacks = getInstanceVariable(config, GML_stacks);
-			if (stacks.m_Kind != VALUE_UNDEFINED)
-			{
-				curBuffData.stacks = stacks.ToInt32();
-			}
-			RValue maxStacks = getInstanceVariable(config, GML_maxStacks);
-			if (maxStacks.m_Kind != VALUE_UNDEFINED)
-			{
-				curBuffData.maxStacks = maxStacks.ToInt32();
-			}
-			RValue buffIcon = getInstanceVariable(config, GML_buffIcon);
-			if (buffIcon.m_Kind != VALUE_UNDEFINED)
-			{
-				curBuffData.buffIcon = buffIcon.ToInt32();
-			}
-			curBuffData.duration = getInstanceVariable(curBuff, GML_timer).ToInt32();
-			curGameData.buffDataList.push_back(curBuffData);
-		}
-
-		RValue itemMap = getInstanceVariable(Self, GML_ITEMS);
-		RValue items = getInstanceVariable(Self, GML_items);
-		RValue itemNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { items });
-		int itemNamesLength = g_ModuleInterface->CallBuiltin("array_length", { itemNames }).ToInt32();
-		for (int i = 0; i < itemNamesLength; i++)
-		{
-			RValue curName = itemNames[i];
-			RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemMap, curName });
-			RValue level = getInstanceVariable(curItem, GML_level);
-			RValue maxLevel = getInstanceVariable(curItem, GML_maxLevel);
-			RValue optionIconSuper = getInstanceVariable(curItem, GML_optionIcon_Super);
-			bool canSuper = optionIconSuper.m_Kind != VALUE_UNDEFINED && optionIconSuper.ToInt32() != sprBulletTempIndex;
-			curGameData.itemDataList.push_back(playerItemData(curName.ToString(), level.ToInt32(), maxLevel.ToInt32(), canSuper));
-		}
-
-		RValue attacks = getInstanceVariable(playerCharacter, GML_attacks);
-		RValue weapons = getInstanceVariable(Self, GML_weapons);
-		RValue attacksNames = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacks });
-		int attackNamesLength = g_ModuleInterface->CallBuiltin("array_length", { attacksNames }).ToInt32();
-		for (int i = 0; i < attackNamesLength; i++)
-		{
-			RValue curName = attacksNames[i];
-			RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_instance_get", { weapons, curName });
-			RValue level = getInstanceVariable(curWeapon, GML_level);
-			RValue maxLevel = getInstanceVariable(curWeapon, GML_maxLevel);
-			RValue curAttack = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curName });
-			RValue config = getInstanceVariable(curAttack, GML_config);
-			int enhancements = getInstanceVariable(config, GML_enhancements).ToInt32();
-			RValue gainedMods = getInstanceVariable(config, GML_gainedMods);
-			auto weaponData = playerWeaponData(curName.ToString(), level.m_Kind == VALUE_UNDEFINED ? -1 : level.ToInt32(), maxLevel.m_Kind == VALUE_UNDEFINED ? -1 : maxLevel.ToInt32(), enhancements);
-			int gainedModsLength = g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).ToInt32();
-			for (int j = 0; j < gainedModsLength; j++)
-			{
-				weaponData.enchantList.push_back(gainedMods[j].ToString());
-			}
-			curGameData.weaponDataList.push_back(weaponData);
-		}
-		nlohmann::json outputJSON = curGameData;
-		editorCharacterData = outputJSON.dump(4);
+		exportToJSON(Self);
 	}
 	if (ImGui::Button("Apply JSON"))
 	{
@@ -338,6 +413,7 @@ void handleImGUI(CInstance* Self)
 			timeArr[1] = minutes;
 			timeArr[2] = seconds;
 			timeArr[3] = 0;
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", curGameData.coins });
 			RValue statUps = getInstanceVariable(Self, GML_playerStatUps);
 			setInstanceVariable(statUps, GML_HP, curGameData.statLevels.hp);
 			setInstanceVariable(statUps, GML_ATK, curGameData.statLevels.atk);
@@ -345,6 +421,50 @@ void handleImGUI(CInstance* Self)
 			setInstanceVariable(statUps, GML_crit, curGameData.statLevels.crit);
 			setInstanceVariable(statUps, GML_pickupRange, curGameData.statLevels.pickupRange);
 			setInstanceVariable(statUps, GML_haste, curGameData.statLevels.haste);
+
+			{
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", curGameData.level });
+				RValue levelrate = g_ModuleInterface->CallBuiltin("variable_instance_get", { Self, "lvlrate1" });
+				RValue lvlexponent = g_ModuleInterface->CallBuiltin("variable_instance_get", { Self, "lvlexponent" });
+				RValue power = g_ModuleInterface->CallBuiltin("power", { curGameData.level * levelrate.ToDouble(), lvlexponent });
+				RValue round = g_ModuleInterface->CallBuiltin("round", { power });
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "experience", round });
+				RValue powerNext = g_ModuleInterface->CallBuiltin("power", { (curGameData.level + 1) * levelrate.ToDouble(), lvlexponent });
+				RValue roundNext = g_ModuleInterface->CallBuiltin("round", { powerNext });
+				setInstanceVariable(Self, GML_toNextLevel, roundNext.ToDouble() - round.ToDouble());
+			}
+
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "enemyDefeated", curGameData.enemyKills });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "miniBossDefeated", curGameData.miniBossKills });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "bossDefeated", curGameData.bossKills });
+
+			// TODO: Stamps
+
+			// Skills
+
+			{
+				RValue perks = getInstanceVariable(Self, GML_perks);
+				RValue perksNames = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { perks });
+				int perksNamesLength = g_ModuleInterface->CallBuiltin("array_length", { perksNames }).ToInt32();
+				for (int i = 0; i < perksNamesLength; i++)
+				{
+					std::string curName = perksNames[i].ToString();
+					sandboxShopItemData itemData(curName, -1, -1, -1, false, SANDBOXITEMTYPE_Perk);
+					handleSandboxItemMenuInteract(Self, itemData, 1);
+				}
+
+				for (int i = 0; i < curGameData.skillDataList.size(); i++)
+				{
+					playerSkillData curSkill = curGameData.skillDataList[i];
+					sandboxShopItemData itemData(curSkill.skillName, -1, 0, curSkill.level, false, SANDBOXITEMTYPE_Perk);
+					for (int j = 0; j <= curSkill.level; j++)
+					{
+						itemData.curLevel = j - 1;
+						handleSandboxItemMenuInteract(Self, itemData, 0);
+					}
+				}
+			}
+
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
 
@@ -367,8 +487,8 @@ void handleImGUI(CInstance* Self)
 				RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { weapons, curName });
 				RValue config = getInstanceVariable(curWeapon, GML_config);
 				std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
-				bool isCollab = optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0;
-				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
+				sandboxItemType weaponType = optionType.compare("Collab") == 0 ? SANDBOXITEMTYPE_Collab : optionType.compare("SuperCollab") == 0 ? SANDBOXITEMTYPE_SuperCollab : SANDBOXITEMTYPE_Weapon;
+				sandboxShopItemData itemData(curName.ToString(), -1, -1, -1, false, weaponType);
 				handleSandboxItemMenuInteract(Self, itemData, 1);
 			}
 
@@ -399,8 +519,8 @@ void handleImGUI(CInstance* Self)
 				RValue curWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackIndexMap, curItem.weaponName.c_str() });
 				RValue config = getInstanceVariable(curWeapon, GML_config);
 				std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
-				bool isCollab = optionType.compare("Collab") == 0 || optionType.compare("SuperCollab") == 0;
-				sandboxShopItemData itemData(curItem.weaponName, -1, 0, curItem.maxLevel, false, isCollab ? SANDBOXITEMTYPE_Collab : SANDBOXITEMTYPE_Weapon);
+				sandboxItemType weaponType = optionType.compare("Collab") == 0 ? SANDBOXITEMTYPE_Collab : optionType.compare("SuperCollab") == 0 ? SANDBOXITEMTYPE_SuperCollab : SANDBOXITEMTYPE_Weapon;
+				sandboxShopItemData itemData(curItem.weaponName, -1, 0, curItem.maxLevel, false, weaponType);
 				for (int j = 0; j < curItem.level; j++)
 				{
 					itemData.curLevel = j;
@@ -426,18 +546,27 @@ void handleImGUI(CInstance* Self)
 				RValue buffConfig;
 				g_RunnerInterface.StructCreate(&buffConfig);
 				setInstanceVariable(buffConfig, GML_reapply, true);
-				setInstanceVariable(buffConfig, GML_stacks, buffData.stacks);
-				setInstanceVariable(buffConfig, GML_maxStacks, buffData.maxStacks);
+				for (auto& buffConfigData : buffData.buffConfigMap)
+				{
+					g_ModuleInterface->CallBuiltin("variable_struct_set", { buffConfig, buffConfigData.first.c_str(), buffConfigData.second });
+				}
 				setInstanceVariable(buffConfig, GML_buffName, buffData.buffName.c_str());
-				setInstanceVariable(buffConfig, GML_buffIcon, buffData.buffIcon);
 
 				RValue buffs = getInstanceVariable(playerCharacter, GML_buffs);
 				RValue curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
 				if (curBuff.m_Kind != VALUE_UNDEFINED)
 				{
 					RValue config = getInstanceVariable(curBuff, GML_config);
-					setInstanceVariable(config, GML_stacks, buffData.stacks);
-					setInstanceVariable(config, GML_maxStacks, buffData.maxStacks);
+					auto stacksFind = buffData.buffConfigMap.find("stacks");
+					if (stacksFind != buffData.buffConfigMap.end())
+					{
+						setInstanceVariable(config, GML_stacks, stacksFind->second);
+					}
+					auto maxStacksFind = buffData.buffConfigMap.find("maxStacks");
+					if (stacksFind != buffData.buffConfigMap.end())
+					{
+						setInstanceVariable(config, GML_maxStacks, maxStacksFind->second);
+					}
 				}
 
 				RValue ApplyBuffMethod = getInstanceVariable(attackController, GML_ApplyBuff);
@@ -450,7 +579,11 @@ void handleImGUI(CInstance* Self)
 
 				curBuff = g_ModuleInterface->CallBuiltin("variable_struct_get", { buffs, buffData.buffName.c_str() });
 				RValue config = getInstanceVariable(curBuff, GML_config);
-				setInstanceVariable(config, GML_stacks, buffData.stacks);
+				auto stacksFind = buffData.buffConfigMap.find("stacks");
+				if (stacksFind != buffData.buffConfigMap.end())
+				{
+					setInstanceVariable(config, GML_stacks, stacksFind->second);
+				}
 			}
 
 			RValue UpdatePlayerMethod = getInstanceVariable(Self, GML_UpdatePlayer);
@@ -509,7 +642,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			RValue lvlexponent = g_ModuleInterface->CallBuiltin("variable_instance_get", { Self, "lvlexponent" });
 			RValue power = g_ModuleInterface->CallBuiltin("power", { (playerlevel.ToDouble() + 1) * levelrate.ToDouble(), lvlexponent });
 			RValue round = g_ModuleInterface->CallBuiltin("round", { power });
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", round });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "experience", round.ToInt32() + 1 });
 		}
 	}
 	else
@@ -817,6 +950,66 @@ void handleSandboxItemMenuInteract(CInstance* playerManagerInstance, sandboxShop
 			}
 			break;
 		}
+		case SANDBOXITEMTYPE_SuperCollab:
+		{
+			if (buyOption == 0)
+			{
+				if (curItem.curLevel == curItem.maxLevel)
+				{
+					return;
+				}
+				RValue itemName = curItem.itemName.c_str();
+				RValue returnVal;
+				RValue** args = new RValue*[1];
+				args[0] = &itemName;
+
+				RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
+				RValue attacks = getInstanceVariable(player, GML_attacks);
+
+				RValue weaponCollabs = getInstanceVariable(playerManagerInstance, GML_weaponCollabs);
+				RValue weapon = g_ModuleInterface->CallBuiltin("variable_instance_get", { weaponCollabs, itemName });
+				RValue config = getInstanceVariable(weapon, GML_config);
+				RValue combos = getInstanceVariable(config, GML_combos);
+
+				RValue attackComboOne = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, combos[0] });
+				RValue tempWeapon;
+				RValue tempConfig;
+				RValue tempGainedMods = g_ModuleInterface->CallBuiltin("array_create", { 0 });
+				g_RunnerInterface.StructCreate(&tempWeapon);
+				g_RunnerInterface.StructCreate(&tempConfig);
+				g_RunnerInterface.StructAddRValue(&tempConfig, "gainedMods", &tempGainedMods);
+				g_RunnerInterface.StructAddRValue(&tempWeapon, "config", &tempConfig);
+				if (attackComboOne.m_Kind != VALUE_UNDEFINED)
+				{
+					g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, "attackComboOne", attackComboOne });
+				}
+				g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, combos[0], tempWeapon });
+
+				origAddSuperCollabPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
+				if (attackComboOne.m_Kind != VALUE_UNDEFINED)
+				{
+					g_ModuleInterface->CallBuiltin("ds_map_set", { attacks, combos[0], attackComboOne });
+					g_ModuleInterface->CallBuiltin("ds_map_delete", { attacks, "attackComboOne" });
+				}
+			}
+			else
+			{
+				RValue player = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerIndex, 0 });
+				RValue attacks = getInstanceVariable(player, GML_attacks);
+				RValue playerWeapon = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacks, curItem.itemName.c_str() });
+				if (playerWeapon.m_Kind == VALUE_UNDEFINED)
+				{
+					return;
+				}
+				RValue config = getInstanceVariable(playerWeapon, GML_config);
+				RValue optionID = getInstanceVariable(config, GML_optionID);
+				RValue weaponCollabs = getInstanceVariable(playerManagerInstance, GML_weaponCollabs);
+				RValue curWeapon = g_ModuleInterface->CallBuiltin("variable_struct_get", { weaponCollabs, optionID });
+				setInstanceVariable(curWeapon, GML_level, 0);
+				g_ModuleInterface->CallBuiltin("ds_map_delete", { attacks, optionID });
+			}
+			break;
+		}
 		case SANDBOXITEMTYPE_Stamp:
 		{
 			if (buyOption == 0)
@@ -977,7 +1170,9 @@ void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				RValue playerWeaponConfig = getInstanceVariable(playerWeapon, GML_config);
 				curLevel = static_cast<int>(lround(getInstanceVariable(playerWeaponConfig, GML_level).m_Real));
 			}
-			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.ToString()), static_cast<int>(lround(optionIcon.ToDouble())), curLevel, 1, false, SANDBOXITEMTYPE_Collab));
+			std::string optionType = getInstanceVariable(config, GML_optionType).ToString();
+			sandboxItemType weaponType = optionType.compare("Collab") == 0 ? SANDBOXITEMTYPE_Collab : optionType.compare("SuperCollab") == 0 ? SANDBOXITEMTYPE_SuperCollab : SANDBOXITEMTYPE_Weapon;
+			itemDataList.push_back(sandboxShopItemData(std::string(curWeaponName.ToString()), static_cast<int>(lround(optionIcon.ToDouble())), curLevel, 1, false, weaponType));
 		}
 
 		RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
@@ -1388,12 +1583,28 @@ void to_json(nlohmann::json& outputJson, const gameData& inputGameData)
 		{ "buffData", inputGameData.buffDataList },
 		{ "weaponData", inputGameData.weaponDataList },
 		{ "itemData", inputGameData.itemDataList },
+		{ "coins", inputGameData.coins },
+		{ "level", inputGameData.level },
+		{ "score", inputGameData.score },
+		{ "enemyKills", inputGameData.enemyKills },
+		{ "miniBossKills", inputGameData.miniBossKills },
+		{ "bossKills", inputGameData.bossKills },
+		{ "stamps", inputGameData.stampDataList },
+		{ "skills", inputGameData.skillDataList },
 	};
 }
 
 void from_json(const nlohmann::json& inputJson, gameData& outputGameData)
 {
 	parseJSONToVar(inputJson, "time", outputGameData.time);
+	parseJSONToVar(inputJson, "coins", outputGameData.coins);
+	parseJSONToVar(inputJson, "level", outputGameData.level);
+	parseJSONToVar(inputJson, "score", outputGameData.score);
+	parseJSONToVar(inputJson, "enemyKills", outputGameData.enemyKills);
+	parseJSONToVar(inputJson, "miniBossKills", outputGameData.miniBossKills);
+	parseJSONToVar(inputJson, "bossKills", outputGameData.bossKills);
+	from_json(inputJson["stamps"], outputGameData.stampDataList);
+	from_json(inputJson["skills"], outputGameData.skillDataList);
 	from_json(inputJson["statLevels"], outputGameData.statLevels);
 	from_json(inputJson["buffData"], outputGameData.buffDataList);
 	from_json(inputJson["weaponData"], outputGameData.weaponDataList);
@@ -1427,9 +1638,7 @@ void to_json(nlohmann::json& outputJson, const playerBuffData& inputBuffData)
 	outputJson = nlohmann::json{
 		{ "name", inputBuffData.buffName },
 		{ "duration", inputBuffData.duration },
-		{ "stacks", inputBuffData.stacks },
-		{ "maxStacks", inputBuffData.maxStacks },
-		{ "buffIcon", inputBuffData.buffIcon },
+		{ "config", inputBuffData.buffConfigMap },
 	};
 }
 
@@ -1437,9 +1646,7 @@ void from_json(const nlohmann::json& inputJson, playerBuffData& outputBuffData)
 {
 	parseJSONToVar(inputJson, "name", outputBuffData.buffName);
 	parseJSONToVar(inputJson, "duration", outputBuffData.duration);
-	parseJSONToVar(inputJson, "stacks", outputBuffData.stacks);
-	parseJSONToVar(inputJson, "maxStacks", outputBuffData.maxStacks);
-	parseJSONToVar(inputJson, "buffIcon", outputBuffData.buffIcon);
+	outputBuffData.buffConfigMap = inputJson["config"];
 }
 
 void to_json(nlohmann::json& outputJson, const playerWeaponData& inputWeaponData)
@@ -1478,6 +1685,105 @@ void from_json(const nlohmann::json& inputJson, playerItemData& outputItemData)
 	parseJSONToVar(inputJson, "level", outputItemData.level);
 	parseJSONToVar(inputJson, "maxLevel", outputItemData.maxLevel);
 	parseJSONToVar(inputJson, "canSuper", outputItemData.canSuper);
+}
+
+void to_json(nlohmann::json& outputJson, const playerStampData& inputStampData)
+{
+	outputJson = nlohmann::json{
+		{ "name", inputStampData.stampName },
+		{ "level", inputStampData.level },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, playerStampData& outputStampData)
+{
+	parseJSONToVar(inputJson, "name", outputStampData.stampName);
+	parseJSONToVar(inputJson, "level", outputStampData.level);
+}
+
+void to_json(nlohmann::json& outputJson, const playerSkillData& inputSkillData)
+{
+	outputJson = nlohmann::json{
+		{ "name", inputSkillData.skillName },
+		{ "level", inputSkillData.level },
+	};
+}
+
+void from_json(const nlohmann::json& inputJson, playerSkillData& outputSkillData)
+{
+	parseJSONToVar(inputJson, "name", outputSkillData.skillName);
+	parseJSONToVar(inputJson, "level", outputSkillData.level);
+}
+
+namespace YYTK
+{
+	void to_json(nlohmann::json& outputJson, const RValue& inputRValue)
+	{
+		switch (inputRValue.m_Kind)
+		{
+			case VALUE_INT32:
+			{
+				outputJson = inputRValue.ToInt32();
+				break;
+			}
+			case VALUE_REAL:
+			{
+				outputJson = inputRValue.ToDouble();
+				break;
+			}
+			case VALUE_STRING:
+			{
+				outputJson = inputRValue.ToString();
+				break;
+			}
+			case VALUE_REF:
+			{
+				outputJson = inputRValue.ToInt32();
+				break;
+			}
+			case VALUE_BOOL:
+			{
+				outputJson = inputRValue.ToBoolean();
+				break;
+			}
+			default:
+			{
+				callbackManagerInterfacePtr->LogToFile(MODNAME, "Unhandled type %s for %s", inputRValue.GetKindName().c_str(), inputRValue.ToString().c_str());
+			}
+		}
+	}
+
+	void from_json(const nlohmann::json& inputJson, RValue& outputRValue)
+	{
+		if (inputJson.is_number_integer())
+		{
+			int intVal = 0;
+			inputJson.get_to(intVal);
+			outputRValue = intVal;
+		}
+		else if (inputJson.is_number_float())
+		{
+			double doubleVal = 0;
+			inputJson.get_to(doubleVal);
+			outputRValue = doubleVal;
+		}
+		else if (inputJson.is_string())
+		{
+			std::string stringVal;
+			inputJson.get_to(stringVal);
+			outputRValue = stringVal.c_str();
+		}
+		else if (inputJson.is_boolean())
+		{
+			bool boolVal;
+			inputJson.get_to(boolVal);
+			outputRValue = boolVal;
+		}
+		else
+		{
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "Unhandled RValue JSON %s", inputJson.dump(4).c_str());
+		}
+	}
 }
 
 // Helper functions

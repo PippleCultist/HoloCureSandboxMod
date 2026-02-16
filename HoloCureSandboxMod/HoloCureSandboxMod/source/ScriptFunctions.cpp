@@ -65,6 +65,7 @@ RValue& GameOverPlayerManagerCreateBefore(CInstance* Self, CInstance* Other, RVa
 {
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", 0 });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "haluLevel", 0 });
+	exportToJSON(Self);
 	return ReturnValue;
 }
 
