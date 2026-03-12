@@ -3,7 +3,7 @@
 #include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.1.5"
+#define VERSION_NUM "v1.1.6"
 #define MODNAME "Holocure Sandbox Mod " VERSION_NUM
 
 #define SOME_ENUM(DO) \
@@ -68,6 +68,8 @@
 	DO(enhancements) \
 	DO(gainedMods) \
 	DO(toNextLevel) \
+	DO(OnHitEffects) \
+	DO(attackDamageID) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames

@@ -93,6 +93,11 @@ void initHooks()
 		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_BaseMob_Draw_0");
 		return;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_AttackController_Create_0", nullptr, AttackControllerCreateAfter)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_AttackController_Create_0");
+		return;
+	}
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CanSubmitScore@gml_Object_obj_PlayerManager_Create_0", CanSubmitScoreFuncBefore, nullptr, nullptr)))
 	{
@@ -182,6 +187,26 @@ void initHooks()
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CalculateScore", nullptr, nullptr, &origCalculateScoreScript)))
 	{
 		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_CalculateScore");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_TakeDamage@gml_Object_obj_BaseMob_Create_0", TakeDamageBaseMobCreateBefore, TakeDamageBaseMobCreateAfter, nullptr)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_TakeDamage@gml_Object_obj_BaseMob_Create_0");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_TakeDamage@gml_Object_obj_Obstacle_Create_0", TakeDamageBaseMobCreateBefore, TakeDamageBaseMobCreateAfter, nullptr)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_TakeDamage@gml_Object_obj_Obstacle_Create_0");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_TakeDamage@gml_Object_obj_Obstacle2_Create_0", TakeDamageBaseMobCreateBefore, TakeDamageBaseMobCreateAfter, nullptr)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_TakeDamage@gml_Object_obj_Obstacle2_Create_0");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ApplyOnHitEffects@gml_Object_obj_BaseMob_Create_0", nullptr, nullptr, nullptr)))
+	{
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_ApplyOnHitEffects@gml_Object_obj_BaseMob_Create_0");
 		return;
 	}
 

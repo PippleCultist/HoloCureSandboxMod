@@ -1,4 +1,7 @@
 #pragma comment(lib, "d3d11.lib")
+
+#define YYTK_DEFINE_INTERNAL true
+
 #include "CommonFunctions.h"
 #include "CodeEvents.h"
 #include "ScriptFunctions.h"
@@ -13,6 +16,14 @@
 extern std::unordered_map<std::string, damageData> damagePerFrameMap;
 extern CallbackManagerInterface* callbackManagerInterfacePtr;
 extern HWND hWnd;
+extern std::deque<trackTakeDamageData> takeDamageStack;
+
+std::unordered_map<PFUNC_YYGMLScript, PFUNC_YYGMLScript> onHitEffectScriptFunctionToOrigFunctionMap;
+std::unordered_map<int, std::string> onHitEffectScriptFunctionIndexToNameMap;
+std::unordered_map<int, PFUNC_YYGMLScript> indexToScriptFunctionMap;
+std::unordered_map<PFUNC_YYGMLScript, int> scriptFunctionToIndexMap;
+
+std::deque<trackTakeDamageData> takeDamageDataList;
 
 bool isInSandboxMenu = false;
 bool prevIsTimePaused = false;
@@ -596,6 +607,36 @@ void handleImGUI(CInstance* Self)
 			callbackManagerInterfacePtr->LogToFile(MODNAME, "Parse Error: %s when parsing character data JSON", e.what());
 		}
 	}
+
+	if (ImGui::TreeNode("Attack On Hit Effects"))
+	{
+		RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
+		int time = ((timeArr[0].ToInt32() * 60 + timeArr[1].ToInt32()) * 60) + timeArr[2].ToInt32();
+		while (!takeDamageDataList.empty() && time > takeDamageDataList.front().frameNum + 600)
+		{
+			takeDamageDataList.pop_front();
+		}
+		int count = 0;
+		for (auto& curData : takeDamageDataList)
+		{
+			if (ImGui::TreeNode((curData.attackID + "##" + std::to_string(count)).c_str()))
+			{
+				for (auto& onHitEffectData : curData.onHitEffectList)
+				{
+					if (ImGui::TreeNode((onHitEffectData.name + "##" + curData.attackID + std::to_string(count)).c_str()))
+					{
+						ImGui::Text(("Before applying onHitEffect: " + std::to_string(onHitEffectData.beforeApplyDamage)).c_str());
+						ImGui::Text(("After applying onHitEffect: " + std::to_string(onHitEffectData.afterApplyDamage)).c_str());
+						ImGui::TreePop();
+					}
+				}
+				ImGui::TreePop();
+			}
+			count++;
+		}
+		ImGui::TreePop();
+	}
+
 	ImGui::End();
 }
 
@@ -1501,6 +1542,49 @@ void BaseMobDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		text = std::format("SPD: {:.3e}", spd.ToDouble());
 		drawTextOutline(Self, xPos.ToDouble(), yPos.ToDouble() + 25, text, 1, 0x000000, 14, 0, 400, 0xFFFFFF, 1);
 	}
+}
+
+RValue& OnHitEffectScriptFunctionAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	int scriptFunctionIndex = -1;
+	callbackManagerInterfacePtr->GetCurrentScriptFunctionInfo(MODNAME, nullptr, scriptFunctionIndex);
+	takeDamageStack.back().onHitEffectList.push_back(onHitEffectData(onHitEffectScriptFunctionIndexToNameMap[scriptFunctionIndex], Args[0]->ToDouble(), ReturnValue.ToDouble()));
+//	DbgPrintEx(LOG_SEVERITY_INFO, "running onHitEffect %s", onHitEffectScriptFunctionIndexToNameMap[scriptFunctionIndex].c_str());
+	return ReturnValue;
+}
+
+void AttackControllerCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	CInstance* Self = std::get<0>(Args);
+	RValue onHitEffectMap = getInstanceVariable(Self, GML_OnHitEffects);
+	RValue onHitEffectNamesArr = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { onHitEffectMap });
+	int onHitEffectNamesArrLength = g_ModuleInterface->CallBuiltin("array_length", { onHitEffectNamesArr }).ToInt32();
+
+	for (int i = 0; i < onHitEffectNamesArrLength; i++)
+	{
+		RValue curOnHitEffect = g_ModuleInterface->CallBuiltin("ds_map_find_value", { onHitEffectMap, onHitEffectNamesArr[i] });
+		PFUNC_YYGMLScript onHitEffectScriptFunc = curOnHitEffect.ToPointer<CScriptRef*>()->m_CallYYC;
+		int scriptFunctionIndex = -1;
+		if (!onHitEffectScriptFunctionToOrigFunctionMap.contains(onHitEffectScriptFunc))
+		{
+			PFUNC_YYGMLScript origScriptFunc = nullptr;
+
+			if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, onHitEffectScriptFunc, nullptr, OnHitEffectScriptFunctionAfter, &origScriptFunc, scriptFunctionIndex)))
+			{
+				DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to register callback for %p", onHitEffectScriptFunc);
+				return;
+			}
+			if (scriptFunctionIndex == -1)
+			{
+				DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to get script index for %p", onHitEffectScriptFunc);
+				return;
+			}
+			onHitEffectScriptFunctionToOrigFunctionMap[onHitEffectScriptFunc] = origScriptFunc;
+			onHitEffectScriptFunctionIndexToNameMap[scriptFunctionIndex] = onHitEffectNamesArr[i].ToString();
+			indexToScriptFunctionMap[scriptFunctionIndex] = onHitEffectScriptFunc;
+			scriptFunctionToIndexMap[onHitEffectScriptFunc] = scriptFunctionIndex;
+		}
+	}	
 }
 
 void parseJSONToVar(const nlohmann::json& inputJson, const char* varName, std::string& outputStr)
